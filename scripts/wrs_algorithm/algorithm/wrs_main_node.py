@@ -31,7 +31,7 @@ class WrsMainController(object):
     GRASP_BACK = {"z": 0.05, "xy": 0.1}
     HAND_PALM_OFFSET = 0.05  # hand_palm_linkは指の付け根なので、把持のために少しずらす必要がある
     HAND_PALM_Z_OFFSET = 0.075
-    DETECT_CNT = 2
+    DETECT_CNT = 1
     TROFAST_Y_OFFSET = 0.2
 
     def __init__(self):
@@ -227,9 +227,9 @@ class WrsMainController(object):
     def extract_target_obj_and_person(instruction):
         """
         指示文から対象となる物体名称を抽出する
-        """ 
+        """
         #TODO: 関数は未完成です。引数のinstructionを利用すること
-        rospy.loginfo("[extract_target_obj_and_person] instruction:"+  instruction) 
+        rospy.loginfo("[extract_target_obj_and_person] instruction:"+  instruction)
         target_obj    = "apple"
         target_person = "right"
 
@@ -314,24 +314,24 @@ class WrsMainController(object):
         return True
 
     def put_in_place(self, place, into_pose):
-        # 指定場所に入れ、all_neutral姿勢を取る。   
-        self.change_pose("move_with_looking_floor")
+        # 指定場所に入れ、all_neutral姿勢を取る。
+        self.change_pose("look_at_near_floor")
         a = "go_palce" # TODO 不要な変数
         self.goto_name(place)
         self.change_pose("all_neutral")
-        self.change_pose(into_pose) 
+        self.change_pose(into_pose)
         gripper.command(1)
-        rospy.sleep(5.0)    
+        rospy.sleep(5.0)
         self.change_pose("all_neutral")
 
     def pull_out_trofast(self, x, y, z, yaw, pitch, roll):
         # trofastの引き出しを引き出す
         self.goto_name("stair_like_drawer")
-        self.change_pose("grasp_on_table")  
+        self.change_pose("grasp_on_table")
         a = True  # TODO 不要な変数
         gripper.command(1)
         whole_body.move_end_effector_pose(x, y + self.TROFAST_Y_OFFSET, z, yaw, pitch, roll)
-        whole_body.move_end_effector_pose(x, y, z, yaw, pitch, roll)    
+        whole_body.move_end_effector_pose(x, y, z, yaw, pitch, roll)
         gripper.command(0)
         whole_body.move_end_effector_pose(x, y + self.TROFAST_Y_OFFSET, z, yaw,  pitch, roll)
         gripper.command(1)
@@ -359,7 +359,7 @@ class WrsMainController(object):
         """
         棚で取得したものを人に渡す。
         """
-        self.change_pose("move_with_looking_floor")
+        self.change_pose("look_at_near_floor")
         self.goto_name("shelf")
         self.change_pose("look_at_shelf")
 
@@ -378,7 +378,7 @@ class WrsMainController(object):
         self.change_pose("all_neutral")
 
         # target_personの前に持っていく
-        self.change_pose("move_with_looking_floor")         
+        self.change_pose("look_at_near_floor")
         self.goto_name("person_b")    # TODO: 配達先が固定されているので修正
         self.change_pose("deliver_to_human")
         rospy.sleep(10.0)
@@ -420,7 +420,7 @@ class WrsMainController(object):
             pos_x = bbox.x
             # TODO デバッグ時にコメントアウトを外す
             # rospy.loginfo("detected object obj.x = {:.2f}".format(bbox.x))
-            
+
             # NOTE Hint:ｙ座標次第で無視してよいオブジェクトもある。
             if pos_x < pos_xa + (interval/2):
                 is_to_xa = False
@@ -459,22 +459,17 @@ class WrsMainController(object):
         """
         rospy.loginfo("#### start Task 1 ####")
         hsr_position = [
-            # ("floor_tall_table", "move_with_looking_floor"),
             ("tall_table", "look_at_tall_table"),
-            # ("floor_long_table_l", "move_with_looking_floor"),
-            # ("long_table_l", "look_at_tall_table"),
-            # ("floor_long_table_c", "move_with_looking_floor"),
-            # ("long_table_c", "look_at_tall_table"),
-            ("floor_long_table_r", "move_with_looking_floor"),
-            ("long_table_r", "look_at_tall_table"),
+            ("near_long_table_l", "look_at_near_floor"),
+            # ("long_table_r", "look_at_tall_table"),
         ]
 
         total_cnt = 0
-        for plc, look_at in hsr_position:
+        for plc, pose in hsr_position:
             for _ in range(self.DETECT_CNT):
                 # 移動と視線指示
                 self.goto_name(plc)
-                self.change_pose(look_at)
+                self.change_pose(pose)
                 gripper.command(0)
 
                 # 把持対象の有無チェック
@@ -505,7 +500,7 @@ class WrsMainController(object):
         task2aを実行する
         """
         rospy.loginfo("#### start Task 2a ####")
-        self.change_pose("move_with_looking_floor")
+        self.change_pose("look_at_near_floor")
         gripper.command(0)
         self.change_pose("look_at_near_floor")
         self.goto_name("standby_2a")
