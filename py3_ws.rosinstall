@@ -7,10 +7,10 @@ repositories:
     type: git
     url: git@github.com:keio-smilab24/hsr_perception.git
     version: product
-  third-party/geometry2:
+  wrs_algorithm21:
     type: git
-    url: git@github.com:ros/geometry2.git
-    version: 0.6.7
+    url: git@github.com:keio-smilab24/wrs_algorithm21.git
+    version: product
   wrs_detector:
     type: git
     url: git@github.com:keio-smilab24/wrs_detector.git

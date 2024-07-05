@@ -1,7 +1,10 @@
 #!/bin/bash -eu
 
-script_dir=$(cd `dirname $0`; pwd)
-$script_dir/start_py3.sh &
-$script_dir/start_py2.sh &
+unset PYTHONPATH
+source /opt/ros/noetic/setup.bash
+source /workspace/py3_ws/devel/setup.bash
+roslaunch hsr_perception pcd_to_tf.launch &
+roslaunch wrs_detector frcnn_finetuned.launch &
+roslaunch wrs_algorithm start_task.launch &
 
 wait
