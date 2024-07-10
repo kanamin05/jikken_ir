@@ -10,7 +10,7 @@ repositories:
   wrs_algorithm21:
     type: git
     url: git@github.com:keio-smilab24/wrs_algorithm21.git
-    version: feature/noetic_migration
+    version: build
   wrs_detector:
     type: git
     url: git@github.com:keio-smilab24/wrs_detector.git
