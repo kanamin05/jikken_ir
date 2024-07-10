@@ -3,7 +3,15 @@ repositories:
     type: git
     url: git@github.com:keio-smilab24/detector_msgs.git
     version: product
+  hsr_perception:
+    type: git
+    url: git@github.com:keio-smilab24/hsr_perception.git
+    version: product
   wrs_algorithm21:
     type: git
     url: git@github.com:keio-smilab24/wrs_algorithm21.git
+    version: feature/noetic_migration
+  wrs_detector:
+    type: git
+    url: git@github.com:keio-smilab24/wrs_detector.git
     version: product
