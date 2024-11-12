@@ -10,8 +10,8 @@ repositories:
   wrs_algorithm21:
     type: git
     url: git@github.com:keio-smilab24/wrs_algorithm21.git
-    version: build
+    version: testing_product
   wrs_detector:
     type: git
     url: git@github.com:keio-smilab24/wrs_detector.git
-    version: build
+    version: product
