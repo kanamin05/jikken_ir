@@ -31,7 +31,7 @@ class WrsMainController(object):
     GRASP_BACK = {"z": 0.05, "xy": 0.1}
     HAND_PALM_OFFSET = 0.05  # hand_palm_linkは指の付け根なので、把持のために少しずらす必要がある
     HAND_PALM_Z_OFFSET = 0.075
-    DETECT_CNT = 1
+    DETECT_CNT = 5
     TROFAST_Y_OFFSET = 0.2
 
     def __init__(self):
@@ -42,6 +42,8 @@ class WrsMainController(object):
         # configファイルの受信
         self.coordinates = self.load_json(self.get_path(["config", "coordinates.json"]))
         self.poses       = self.load_json(self.get_path(["config", "poses.json"]))
+
+        self.sorting = self.load_json(self.get_path(["config", "object_sorting.json"]))
 
         # ROS通信関連の初期化
         tf_from_bbox_srv_name = "set_tf_from_bbox"
@@ -287,6 +289,7 @@ class WrsMainController(object):
         rospy.loginfo("grasp_from_upper_side (%.2f, %.2f, %.2f)",grasp_pos.x, grasp_pos.y, grasp_pos.z)
         self.grasp_from_side(grasp_pos.x, grasp_pos.y, grasp_pos.z, -90, -160, 0, "-y")
 
+
     def exec_graspable_method(self, grasp_pos, label=""):
         """
         task1専用:posの位置によって把持方法を判定し実行する。
@@ -312,6 +315,26 @@ class WrsMainController(object):
 
         method(grasp_pos)
         return True
+
+    def where_to_put(self, label, category=None):
+        """Return the configured category and deposit for a detector label.
+
+        Pass category="boss" for an object identified as a boss.
+        The first deposit is preferred when a category has multiple deposits.
+        Unrecognized labels use the configured unknown-object category.
+        This selects a destination; it does not perform drawer opening or
+        orientation-specific placement.
+        """
+        if category is None:
+            category = self.sorting["default_category"]
+            for name, rule in self.sorting["categories"].items():
+                if label in rule["labels"]:
+                    category = name
+                    break
+        destination = self.sorting["categories"][category]["destinations"][0]
+        result = dict(self.sorting["destinations"][destination])
+        result.update(category=category, destination=destination)
+        return result
 
     def put_in_place(self, place, into_pose):
         # 指定場所に入れ、all_neutral姿勢を取る。
@@ -464,7 +487,6 @@ class WrsMainController(object):
             # ("long_table_r", "look_at_tall_table"),
         ]
 
-        total_cnt = 0
         for plc, pose in hsr_position:
             for _ in range(self.DETECT_CNT):
                 # 移動と視線指示
@@ -481,19 +503,28 @@ class WrsMainController(object):
                     continue
                 label = graspable_obj["label"]
                 grasp_bbox = graspable_obj["bbox"]
+                deposit = self.where_to_put(label)
+                place, into_pose = deposit["waypoint"], deposit["pose"]
+                if (place not in self.coordinates["positions"] or
+                        into_pose not in self.poses):
+                    rospy.logwarn("Cannot sort %s into %s: configure its waypoint and pose.",
+                                  label, deposit["destination"])
+                    continue
+                rospy.loginfo("sort %s (%s) into %s", label, deposit["category"],
+                              deposit["destination"])
                 # TODO ラベル名を確認するためにコメントアウトを外す
-                # rospy.loginfo("grasp the " + label)
+                rospy.loginfo("grasp the " + label)
 
                 # 把持対象がある場合は把持関数実施
                 grasp_pos = self.get_grasp_coordinate(grasp_bbox)
                 self.change_pose("grasp_on_table")
-                self.exec_graspable_method(grasp_pos, label)
+                if not self.exec_graspable_method(grasp_pos, label):
+                    self.change_pose("all_neutral")
+                    continue
                 self.change_pose("all_neutral")
 
                 # binに入れる
-                if total_cnt % 2 == 0:  self.put_in_place("bin_a_place", "put_in_bin")
-                else:  self.put_in_place("bin_b_place", "put_in_bin")
-                total_cnt += 1
+                self.put_in_place(place, into_pose)
 
     def execute_task2a(self):
         """
