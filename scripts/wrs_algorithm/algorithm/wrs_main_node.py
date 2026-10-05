@@ -460,7 +460,7 @@ class WrsMainController(object):
         rospy.loginfo("#### start Task 1 ####")
         hsr_position = [
             ("tall_table", "look_at_tall_table"),
-            ("near_long_table_l", "look_at_near_floor"),
+            # ("near_long_table_l", "look_at_near_floor"),
             # ("long_table_r", "look_at_tall_table"),
         ]
 
@@ -537,8 +537,8 @@ class WrsMainController(object):
         """
         self.change_pose("all_neutral")
         self.execute_task1()
-        self.execute_task2a()
-        self.execute_task2b()
+        # self.execute_task2a()
+        # self.execute_task2b()
 
 
 def main():
