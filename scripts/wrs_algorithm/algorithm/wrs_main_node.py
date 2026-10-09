@@ -492,6 +492,7 @@ class WrsMainController(object):
     def execute_task1(self):
         rospy.loginfo("#### Drawer Position Test ####")
 
+        # =====左下の引き出し=====
         # 1. 引き出し前へ移動
         if not self.goto_name("stair_like_drawer"):
             return
@@ -502,29 +503,65 @@ class WrsMainController(object):
         # 3. アームの高さ・姿勢を設定
         grasp_pose = dict(self.poses["grasp_on_table"])
         grasp_pose["arm_lift_joint"] = 0.0 #アームの高さ
-        grasp_pose["arm_flex_joint"] = -1.5 #アームののばし
-        grasp_pose["wrist_flex_joint"] = 0.0 #手首の角度
+        grasp_pose["arm_flex_joint"] = -1.65 #アームの角度
+        grasp_pose["wrist_flex_joint"] = -0.0 #手首の角度
         grasp_pose["wrist_roll_joint"] = 1.5 #手首をひねる
 
         whole_body.move_to_joint_positions(grasp_pose)
+        rospy.sleep(1.0)
+        omni_base.cmd_vel(0.1, 0.0, 0.0)
+        rospy.sleep(0.2)
+        omni_base.cmd_vel(0.0, 0.0, 0.0)
 
-        # 4. 一定速度で前進
-        import time
+        # 4. 取っ手をつかむ
+        gripper.command(0)
+        rospy.sleep(1.0)
 
-        start_time = time.time()
+        # 5. 本体を左後方に後退させて引き出す
+        omni_base.cmd_vel(-1.0, 0.0, 0.0)
+        rospy.sleep(10.0)
+        omni_base.cmd_vel(0.0, 0.0, 0.0)
 
-        try:
-            while time.time() - start_time < 2.0:
-                omni_base.cmd_vel(0.1, 0.0, 0.0)
-                time.sleep(0.02)
-        finally:
-            omni_base.cmd_vel(0.0, 0.0, 0.0)
+        # 6. グリッパを開いて離す
+        gripper.command(1)
+        rospy.sleep(1.0)
 
-        # 5. 取っ手との位置関係を確認して終了
-        rospy.loginfo("#### Position Test Finished ####")
-        return
+        # =====右下の引き出し=====
+        # 1. 引き出し前へ移動
+        if not self.goto_name("drawer"):
+            return
 
+        # 2. グリッパを開く
+        gripper.command(1)
 
+        # 3. アームの高さ・姿勢を設定
+        grasp_pose = dict(self.poses["grasp_on_table"])
+        grasp_pose["arm_lift_joint"] = 0.0 #アームの高さ
+        grasp_pose["arm_flex_joint"] = -1.65 #アームの角度
+        grasp_pose["wrist_flex_joint"] = -0.0 #手首の角度
+        grasp_pose["wrist_roll_joint"] = 1.5 #手首をひねる
+
+        whole_body.move_to_joint_positions(grasp_pose)
+        rospy.sleep(1.0)
+        omni_base.cmd_vel(0.1, 0.0, 0.0)
+        rospy.sleep(0.2)
+        omni_base.cmd_vel(0.0, 0.0, 0.0)
+
+        # 4. 取っ手をつかむ
+        gripper.command(0)
+        rospy.sleep(1.0)
+
+        # 5. 本体を左後方に後退させて引き出す
+        omni_base.cmd_vel(-1.0, 0.0, 0.0)
+        rospy.sleep(10.0)
+        omni_base.cmd_vel(0.0, 0.0, 0.0)
+
+        # 6. グリッパを開いて離す
+        gripper.command(1)
+        rospy.sleep(1.0)
+
+        # =====右上の引き出し=====
+        
 
 
         # # 物体探索、把持処理
