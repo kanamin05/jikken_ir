@@ -487,81 +487,145 @@ class WrsMainController(object):
         return x_line[current_stp]
 
 
-    
-    
     def execute_task1(self):
-        rospy.loginfo("#### Drawer Position Test ####")
+        rospy.loginfo("#### Drawer Detection Test ####")
 
-        # =====左下の引き出し=====
-        # 1. 引き出し前へ移動
+        # 引き出し前へ移動
         if not self.goto_name("stair_like_drawer"):
             return
 
-        # 2. グリッパを開く
-        gripper.command(1)
+        # カメラを向ける
+        self.change_pose("look_at_tall_table")
+        rospy.sleep(2.0)
 
-        # 3. アームの高さ・姿勢を設定
-        grasp_pose = dict(self.poses["grasp_on_table"])
-        grasp_pose["arm_lift_joint"] = 0.0 #アームの高さ
-        grasp_pose["arm_flex_joint"] = -1.65 #アームの角度
-        grasp_pose["wrist_flex_joint"] = -0.0 #手首の角度
-        grasp_pose["wrist_roll_joint"] = 1.5 #手首をひねる
+        # 物体検出
+        detected_objs = self.get_latest_detection()
 
-        whole_body.move_to_joint_positions(grasp_pose)
-        rospy.sleep(1.0)
-        omni_base.cmd_vel(0.1, 0.0, 0.0)
-        rospy.sleep(0.2)
-        omni_base.cmd_vel(0.0, 0.0, 0.0)
-
-        # 4. 取っ手をつかむ
-        gripper.command(0)
-        rospy.sleep(1.0)
-
-        # 5. 本体を左後方に後退させて引き出す
-        omni_base.cmd_vel(-1.0, 0.0, 0.0)
-        rospy.sleep(10.0)
-        omni_base.cmd_vel(0.0, 0.0, 0.0)
-
-        # 6. グリッパを開いて離す
-        gripper.command(1)
-        rospy.sleep(1.0)
-
-        # =====右下の引き出し=====
-        # 1. 引き出し前へ移動
-        if not self.goto_name("drawer"):
+        if not detected_objs.bboxes:
+            rospy.logwarn("No objects detected")
             return
 
-        # 2. グリッパを開く
-        gripper.command(1)
+        # 検出物体をすべて表示
+        for i, bbox in enumerate(detected_objs.bboxes):
+            rospy.loginfo(
+                "[%d] %s score=%.2f center=(%.1f, %.1f)",
+                i,
+                bbox.label,
+                bbox.score,
+                bbox.x + bbox.w / 2.0,
+                bbox.y + bbox.h / 2.0
+            )
 
-        # 3. アームの高さ・姿勢を設定
-        grasp_pose = dict(self.poses["grasp_on_table"])
-        grasp_pose["arm_lift_joint"] = 0.0 #アームの高さ
-        grasp_pose["arm_flex_joint"] = -1.65 #アームの角度
-        grasp_pose["wrist_flex_joint"] = -0.0 #手首の角度
-        grasp_pose["wrist_roll_joint"] = 1.5 #手首をひねる
+        # まずは一番信頼度の高い検出枠を確認
+        target = max(
+            detected_objs.bboxes,
+            key=lambda b: b.score
+        )
 
-        whole_body.move_to_joint_positions(grasp_pose)
-        rospy.sleep(1.0)
-        omni_base.cmd_vel(0.1, 0.0, 0.0)
-        rospy.sleep(0.2)
-        omni_base.cmd_vel(0.0, 0.0, 0.0)
+        rospy.loginfo("Selected label: %s", target.label)
 
-        # 4. 取っ手をつかむ
-        gripper.command(0)
-        rospy.sleep(1.0)
+        # 3次元座標を取得
+        grasp_pos = self.get_grasp_coordinate(target)
 
-        # 5. 本体を左後方に後退させて引き出す
-        omni_base.cmd_vel(-1.0, 0.0, 0.0)
-        rospy.sleep(10.0)
-        omni_base.cmd_vel(0.0, 0.0, 0.0)
+        if grasp_pos is None:
+            rospy.logwarn("Cannot get grasp position")
+            return
 
-        # 6. グリッパを開いて離す
-        gripper.command(1)
-        rospy.sleep(1.0)
+        rospy.loginfo(
+            "Detected map position: x=%.3f y=%.3f z=%.3f",
+            grasp_pos.x,
+            grasp_pos.y,
+            grasp_pos.z
+        )
+    
+    
+    # def execute_task1(self):
+    #     # rospy.loginfo("#### Drawer Position Test ####")
+    #     # 物体検出を実行
+    #     detected_objs = self.get_latest_detection()
+
+    #     # 引き出しの前へ移動
+    #     if not self.goto_name("stair_like_drawer"):
+    #         return
+    #     # カメラを引き出しに向ける
+    #     self.change_pose("look_at_tall_table")
+
+    #     # 検出結果を取得
+    #     detected_objs = self.get_latest_detection()
+
+    #     # 検出された物体の情報を表示
+    #     for obj in detected_objs.bboxes:
+    #         rospy.loginfo("Detected: %s", obj)
+        # # =====左下の引き出し=====
+        # # 1. 引き出し前へ移動
+        # if not self.goto_name("stair_like_drawer"):
+        #     return
+
+        # # 2. グリッパを開く
+        # gripper.command(1)
+
+        # # 3. アームの高さ・姿勢を設定
+        # grasp_pose = dict(self.poses["grasp_on_table"])
+        # grasp_pose["arm_lift_joint"] = 0.0 #アームの高さ
+        # grasp_pose["arm_flex_joint"] = -1.65 #アームの角度
+        # grasp_pose["wrist_flex_joint"] = -0.0 #手首の角度
+        # grasp_pose["wrist_roll_joint"] = 1.5 #手首をひねる
+
+        # whole_body.move_to_joint_positions(grasp_pose)
+        # rospy.sleep(1.0)
+        # omni_base.cmd_vel(0.1, 0.0, 0.0)
+        # rospy.sleep(0.2)
+        # omni_base.cmd_vel(0.0, 0.0, 0.0)
+
+        # # 4. 取っ手をつかむ
+        # gripper.command(0)
+        # rospy.sleep(1.0)
+
+        # # 5. 本体を左後方に後退させて引き出す
+        # omni_base.cmd_vel(-1.0, 0.0, 0.0)
+        # rospy.sleep(10.0)
+        # omni_base.cmd_vel(0.0, 0.0, 0.0)
+
+        # # 6. グリッパを開いて離す
+        # gripper.command(1)
+        # rospy.sleep(1.0)
+
+        # # =====右下の引き出し=====
+        # # 1. 引き出し前へ移動
+        # if not self.goto_name("drawer"):
+        #     return
+
+        # # 2. グリッパを開く
+        # gripper.command(1)
+
+        # # 3. アームの高さ・姿勢を設定
+        # grasp_pose = dict(self.poses["grasp_on_table"])
+        # grasp_pose["arm_lift_joint"] = 0.0 #アームの高さ
+        # grasp_pose["arm_flex_joint"] = -1.65 #アームの角度
+        # grasp_pose["wrist_flex_joint"] = -0.0 #手首の角度
+        # grasp_pose["wrist_roll_joint"] = 1.5 #手首をひねる
+
+        # whole_body.move_to_joint_positions(grasp_pose)
+        # rospy.sleep(1.0)
+        # omni_base.cmd_vel(0.1, 0.0, 0.0)
+        # rospy.sleep(0.2)
+        # omni_base.cmd_vel(0.0, 0.0, 0.0)
+
+        # # 4. 取っ手をつかむ
+        # gripper.command(0)
+        # rospy.sleep(1.0)
+
+        # # 5. 本体を左後方に後退させて引き出す
+        # omni_base.cmd_vel(-1.0, 0.0, 0.0)
+        # rospy.sleep(10.0)
+        # omni_base.cmd_vel(0.0, 0.0, 0.0)
+
+        # # 6. グリッパを開いて離す
+        # gripper.command(1)
+        # rospy.sleep(1.0)
 
         # =====右上の引き出し=====
-        
+
 
 
         # # 物体探索、把持処理
