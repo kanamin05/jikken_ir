@@ -435,13 +435,50 @@ class WrsMainController(object):
                     position = self.get_grasp_coordinate(bbox)
                     if position is None:
                         raise ValueError("Obstacle position unavailable")
-                    observed_obstacles.append((position.x, position.y))
+
+                    # Kanami: 検出した物体の種類とmap座標を確認
+                    rospy.loginfo(
+                        "Task2a detection: label=%s "
+                        "map=(%.3f, %.3f, %.3f)",
+                        getattr(bbox, "label", "unknown"),
+                        position.x, position.y, position.z
+                    )
+
+                    observed_obstacles.append(
+                        (position.x, position.y)
+                    )                
 
                 transform = self.tf_buffer.lookup_transform(
                     "map", "base_footprint",
                     rospy.Time(0), rospy.Duration(4.0)
                 )
                 position = transform.transform.translation
+
+                # Kanami: 現在位置が障害物の除外範囲内か確認
+                required_distance = (
+                    robot_radius + obstacle_radius + safety_margin
+                )
+                rospy.loginfo(
+                    "Task2a current=(%.3f, %.3f), clearance=%.3f",
+                    position.x, position.y, required_distance
+                )
+
+                for index, obstacle in enumerate(observed_obstacles):
+                    distance = math.hypot(
+                        obstacle[0] - position.x,
+                        obstacle[1] - position.y
+                    )
+                    rospy.loginfo(
+                        "Task2a obstacle[%d]=(%.3f, %.3f), "
+                        "distance_from_robot=%.3f",
+                        index, obstacle[0], obstacle[1], distance
+                    )
+                    if distance <= required_distance:
+                        rospy.logwarn(
+                            "Current position is inside obstacle[%d] "
+                            "exclusion area; every route will be rejected.",
+                            index
+                        )
 
                 route = self.task2a_select_safe_route(
                     current_xy=(position.x, position.y),
