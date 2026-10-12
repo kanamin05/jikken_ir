@@ -409,15 +409,65 @@ class WrsMainController(object):
         self.change_pose("all_neutral")
 
     def execute_avoid_blocks(self):
-        # blockを避ける
-        for i in range(3):
-            detected_objs = self.get_latest_detection()
-            bboxes = detected_objs.bboxes
-            pos_bboxes = [self.get_grasp_coordinate(bbox) for bbox in bboxes]
-            waypoint = self.select_next_waypoint(i, pos_bboxes)
-            # TODO メッセージを確認するためコメントアウトを外す
-            # rospy.loginfo(waypoint)
-            self.goto_pos(waypoint)
+        """Kanami担当: 再観測しながら障害物を回避する。"""
+        parameter_names = (
+            "~task2a_robot_radius",
+            "~task2a_obstacle_radius",
+            "~task2a_safety_margin",
+        )
+        if not all(rospy.has_param(name) for name in parameter_names):
+            rospy.logerr("Configure Task2a radii and safety margin first.")
+            return False
+
+        robot_radius, obstacle_radius, safety_margin = (
+            float(rospy.get_param(name)) for name in parameter_names
+        )
+        goal = self.coordinates["positions"]["go_throw_2a"]
+        observed_obstacles = []
+
+        for step in range(3):
+            if rospy.is_shutdown():
+                return False
+
+            try:
+                detected = self.get_latest_detection()
+                for bbox in detected.bboxes:
+                    position = self.get_grasp_coordinate(bbox)
+                    if position is None:
+                        raise ValueError("Obstacle position unavailable")
+                    observed_obstacles.append((position.x, position.y))
+
+                transform = self.tf_buffer.lookup_transform(
+                    "map", "base_footprint",
+                    rospy.Time(0), rospy.Duration(4.0)
+                )
+                position = transform.transform.translation
+
+                route = self.task2a_select_safe_route(
+                    current_xy=(position.x, position.y),
+                    obstacle_xy=observed_obstacles,
+                    start_step=step,
+                    goal=goal,
+                    robot_radius=robot_radius,
+                    obstacle_radius=obstacle_radius,
+                    safety_margin=safety_margin,
+                )
+            except Exception as error:
+                rospy.logerr("Task2a planning failed: %s", error)
+                return False
+
+            if route is None:
+                rospy.logwarn("No safe route. Task2a aborted.")
+                return False
+
+            rospy.loginfo(
+                "Task2a step %d: waypoint %s", step, route[0]
+            )
+            if not self.goto_pos(route[0]):
+                rospy.logwarn("Task2a navigation failed.")
+                return False
+
+        return self.goto_pos(goal)    
 
     def select_next_waypoint(self, current_stp, pos_bboxes):
         """
@@ -475,6 +525,98 @@ class WrsMainController(object):
             rospy.loginfo("select default waypoint")
 
         return x_line[current_stp]
+    
+        # ===== Kanami担当: Task2aの経路選択 START =====
+
+    @staticmethod
+    def task2a_point_to_segment_distance(point, start, end):
+        """障害物中心と移動区間の最短距離を返す。[m]"""
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        length_squared = dx * dx + dy * dy
+
+        if length_squared == 0:
+            return math.hypot(
+                point[0] - start[0], point[1] - start[1]
+            )
+
+        ratio = (
+            (point[0] - start[0]) * dx
+            + (point[1] - start[1]) * dy
+        ) / length_squared
+        ratio = max(0.0, min(1.0, ratio))
+
+        nearest_x = start[0] + ratio * dx
+        nearest_y = start[1] + ratio * dy
+        return math.hypot(
+            point[0] - nearest_x, point[1] - nearest_y
+        )
+
+    def task2a_select_safe_route(
+            self, current_xy, obstacle_xy, start_step, goal,
+            robot_radius, obstacle_radius, safety_margin):
+        """残りの移動先から安全な最短経路を選ぶ。なければNone。"""
+        import itertools
+
+        # 既存コードの3列×3段。[map x, map y, yaw (degree)]
+        layers = (
+            ((1.70, 2.50, 45), (2.15, 2.50, 90), (2.60, 2.50, 135)),
+            ((1.70, 2.90, 45), (2.15, 2.90, 90), (2.60, 2.90, 135)),
+            ((1.70, 3.30, 90), (2.15, 3.30, 90), (2.60, 3.30, 90)),
+        )
+
+        if not 0 <= start_step < len(layers):
+            raise ValueError("Invalid start_step")
+
+        dimensions = (
+            robot_radius, obstacle_radius, safety_margin
+        )
+        if not all(
+                math.isfinite(value) and value >= 0
+                for value in dimensions):
+            raise ValueError("Invalid radius or safety margin")
+        if robot_radius == 0:
+            raise ValueError("robot_radius must be positive")
+
+        points = [current_xy, goal] + list(obstacle_xy)
+        if not all(
+                math.isfinite(point[0]) and math.isfinite(point[1])
+                for point in points):
+            raise ValueError("Invalid coordinates")
+
+        required_distance = sum(dimensions)
+        best_route = None
+        best_length = float("inf")
+
+        # 最大27通り。ゴールまでの全区間を確認する。
+        for selected in itertools.product(*layers[start_step:]):
+            route = list(selected) + [goal]
+            previous = current_xy
+            total_length = 0.0
+
+            for waypoint in route:
+                blocked = any(
+                    self.task2a_point_to_segment_distance(
+                        obstacle, previous, waypoint
+                    ) <= required_distance
+                    for obstacle in obstacle_xy
+                )
+                if blocked:
+                    break
+
+                total_length += math.hypot(
+                    waypoint[0] - previous[0],
+                    waypoint[1] - previous[1]
+                )
+                previous = waypoint
+            else:
+                if total_length < best_length:
+                    best_length = total_length
+                    best_route = [list(point) for point in route]
+
+        return best_route
+
+    # ===== Kanami担当: Task2aの経路選択 END =====
 
     def execute_task1(self):
         """
@@ -526,21 +668,22 @@ class WrsMainController(object):
                 # binに入れる
                 self.put_in_place(place, into_pose)
 
+       
     def execute_task2a(self):
-        """
-        task2aを実行する
-        """
+        """Task2aを実行する。失敗時はFalseを返す。"""
         rospy.loginfo("#### start Task 2a ####")
         self.change_pose("look_at_near_floor")
         gripper.command(0)
-        self.change_pose("look_at_near_floor")
-        self.goto_name("standby_2a")
 
-        # 落ちているブロックを避けて移動
-        self.execute_avoid_blocks()
+        if not self.goto_name("standby_2a"):
+            return False
 
-        self.goto_name("go_throw_2a")
+        # Kanami担当の回避処理
+        if not self.execute_avoid_blocks():
+            return False
+
         whole_body.move_to_go()
+        return True    
 
     def execute_task2b(self):
         """
