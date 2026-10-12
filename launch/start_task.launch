@@ -1,5 +1,8 @@
 <launch>
   <node pkg="wrs_algorithm" type="wrs_main_node.py" name="wrs_main" output="screen" required="true">
     <param name="test_mode" value="false" />
+    <param name="task2a_robot_radius" value="0.30" />
+    <param name="task2a_obstacle_radius" value="0.19" />
+    <param name="task2a_safety_margin" value="0.10" />
   </node>
 </launch>
