@@ -651,7 +651,7 @@ class WrsMainController(object):
         if not self.correct_drawer_pose_mako(
             target_x=0.375,
             target_y=0.36,
-            target_deg=-90.0
+            target_deg=-89.0
         ):
             rospy.logwarn("左下：角度補正に失敗しました")
 
@@ -682,7 +682,7 @@ class WrsMainController(object):
 
         # 取っ手に近づく
         self.move_forward_backward_mako(
-            duration=0.6,
+            duration=0.7,
             speed=0.05
         )
 
@@ -732,7 +732,7 @@ class WrsMainController(object):
         if not self.correct_drawer_pose_mako(
             target_x=0.065,
             target_y=0.33,
-            target_deg=-86.0
+            target_deg=-88.0
         ):
             rospy.logwarn("右下：角度補正に失敗しました")
 
@@ -752,7 +752,7 @@ class WrsMainController(object):
         if not self.correct_drawer_pose_mako(
             target_x=0.065,
             target_y=0.33,
-            target_deg=-88.0
+            target_deg=-90.0
         ):
             rospy.logwarn("右下：角度補正に失敗しました")
 
@@ -760,9 +760,19 @@ class WrsMainController(object):
 
         # 取っ手に近づく
         self.move_forward_backward_mako(
-            duration=2.0,
+            duration=1.9,
             speed=0.05
         )
+
+        # # もう一度角度補正
+        # if not self.correct_drawer_pose_mako(
+        #     target_x=0.065,
+        #     target_y=0.33,
+        #     target_deg=-88.0
+        # ):
+        #     rospy.logwarn("右下：角度補正に失敗しました")
+
+        rospy.sleep(1.0)
 
         # 取っ手をつかむ
         gripper.command(0)
@@ -810,7 +820,7 @@ class WrsMainController(object):
         if not self.correct_drawer_pose_mako(
             target_x=0.065,
             target_y=0.33,
-            target_deg=-86.0
+            target_deg=-88.0
         ):
             rospy.logwarn("右上：角度補正に失敗しました")
 
@@ -822,7 +832,7 @@ class WrsMainController(object):
 
         # 右上の引き出し用の高さ
         grasp_pose["arm_lift_joint"] = 0.24
-        grasp_pose["arm_flex_joint"] = -1.7
+        grasp_pose["arm_flex_joint"] = -1.65
         grasp_pose["wrist_flex_joint"] = 0.0
         grasp_pose["wrist_roll_joint"] = 1.5
 
@@ -841,9 +851,17 @@ class WrsMainController(object):
 
         # 取っ手に近づく
         self.move_forward_backward_mako(
-            duration=2.0,
+            duration=1.7,
             speed=0.05
         )
+
+        # もう一度角度補正
+        if not self.correct_drawer_pose_mako(
+            target_x=0.065,
+            target_y=0.33,
+            target_deg=-90.0
+        ):
+            rospy.logwarn("右上：角度補正に失敗しました")
 
         # 取っ手をつかむ
         gripper.command(0)
