@@ -902,10 +902,10 @@ class WrsMainController(object):
                  lift=0.0, arm_flex = -1.7, grasp_y=0.32, pull_dist=0.3),
             dict(name="右下", waypoint="drawer",
                  target_x=0.07, target_y=0.34, target_deg=-90.0,
-                 lift=0.0, arm_flex = -1.6, grasp_y=0.32, pull_dist=0.25),
+                 lift=0.0, arm_flex = -1.6, grasp_y=0.28, pull_dist=0.25),
             dict(name="右上", waypoint="drawer",
                  target_x=0.07, target_y=0.34, target_deg=-90.0,
-                 lift=0.23, arm_flex = -1.5, grasp_y=0.25, pull_dist=0.3),
+                 lift=0.22, arm_flex = -1.5, grasp_y=0.28, pull_dist=0.3),
         ]
 
         for drawer in drawers:
