@@ -1,0 +1,156 @@
+{
+  "description": "Object categories follow the supplied section 4.3 list. Unconfigured destinations are redirected to bin_a or bin_b so the robot can continue operating without drawer/tray/container-specific waypoints and poses. First destination is preferred. Boss is an explicit category, not a detector label.",
+  "default_category": "unknown_objects",
+  "categories": {
+    "shape_items": {
+      "labels": [
+        "credit_card_blank",
+        "mini_soccer_ball",
+        "softball",
+        "baseball",
+        "tennis_ball",
+        "racquetball",
+        "golf_ball",
+        "marble",
+        "cup",
+        "foam_brick",
+        "dice",
+        "rope",
+        "chain"
+      ],
+      "destinations": [
+        "bin_a"
+      ]
+    },
+    "tools": {
+      "labels": [
+        "large_marker",
+        "small_marker",
+        "padlock",
+        "bolt_and_nut",
+        "clamp"
+      ],
+      "destinations": [
+        "bin_b"
+      ]
+    },
+    "food": {
+      "labels": [
+        "cracker_box",
+        "sugar_box",
+        "pudding_box",
+        "gelatin_box",
+        "potted_meat_can",
+        "master_chef_can",
+        "tuna_fish_can",
+        "chips_can",
+        "mustard_bottle",
+        "tomato_soup_can",
+        "banana",
+        "strawberry",
+        "apple",
+        "lemon",
+        "peach",
+        "pear",
+        "orange",
+        "plum"
+      ],
+      "destinations": [
+        "bin_b"
+      ]
+    },
+    "kitchen_items": {
+      "labels": [
+        "windex_bottle",
+        "bleach_cleanser",
+        "sponge",
+        "pitcher_base",
+        "pitcher_lid",
+        "plate",
+        "bowl",
+        "fork",
+        "spoon",
+        "spatula",
+        "wine_glass",
+        "mug"
+      ],
+      "destinations": [
+        "bin_b"
+      ]
+    },
+    "orientation_based_items": {
+      "labels": [],
+      "destinations": [
+        "bin_b"
+      ]
+    },
+    "task_items": {
+      "labels": [
+        "rubiks_cube",
+        "colored_wood_block",
+        "nine_hole_peg_test",
+        "toy_airplane",
+        "lego_duplo",
+        "magazine",
+        "black_t_shirt",
+        "timer"
+      ],
+      "destinations": [
+        "bin_a"
+      ]
+    },
+    "unknown_objects": {
+      "labels": [
+        "unknown",
+        "object"
+      ],
+      "destinations": [
+        "bin_b"
+      ]
+    },
+    "boss": {
+      "labels": [],
+      "destinations": [
+        "bin_b"
+      ]
+    }
+  },
+  "destinations": {
+    "drawer_left": {
+      "waypoint": "bin_a_place",
+      "pose": "put_in_bin"
+    },
+    "drawer_top": {
+      "waypoint": "bin_b_place",
+      "pose": "put_in_bin"
+    },
+    "drawer_bottom": {
+      "waypoint": "bin_b_place",
+      "pose": "put_in_bin"
+    },
+    "tray_a": {
+      "waypoint": "bin_b_place",
+      "pose": "put_in_bin"
+    },
+    "tray_b": {
+      "waypoint": "bin_b_place",
+      "pose": "put_in_bin"
+    },
+    "container_a": {
+      "waypoint": "bin_b_place",
+      "pose": "put_in_bin"
+    },
+    "container_b": {
+      "waypoint": "bin_b_place",
+      "pose": "put_in_bin"
+    },
+    "bin_a": {
+      "waypoint": "bin_a_place",
+      "pose": "put_in_bin"
+    },
+    "bin_b": {
+      "waypoint": "bin_b_place",
+      "pose": "put_in_bin"
+    }
+  }
+}

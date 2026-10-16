@@ -149,13 +149,13 @@ def move_to_joint_positions(joints):
     # actionサーバの結果を待つ
     if arm_cnt > 0:
         arm_client.wait_for_result()
-        arm_state = True if arm_client.get_result() == GoalStatus.SUCCEEDED else False
+        arm_state = True if arm_client.get_state() == GoalStatus.SUCCEEDED else False
     else:
         arm_state = True
 
     if head_cnt > 0:
         head_client.wait_for_result()
-        head_state = True if head_client.get_result() == GoalStatus.SUCCEEDED else False
+        head_state = True if head_client.get_state() == GoalStatus.SUCCEEDED else False
     else:
         head_state = True
 
