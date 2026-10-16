@@ -3,7 +3,7 @@
         "tall_table": [-0.02, 1.0, 95],
         "long_table_r": [1.45, 1.0, 90],
         "near_long_table_l": [0.2, 0.4, 90],
-        "drawer": [0.07, 0.35, -90],
+        "drawer": [0.07, 0.34, -90],
         "stair_like_drawer":[0.36, 0.35, -90],
         "bin_a": [2.4, 0.0, -90],
         "bin_a_place": [2.35, 0.0, -90],

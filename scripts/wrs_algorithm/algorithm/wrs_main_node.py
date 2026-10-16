@@ -687,8 +687,8 @@ class WrsMainController(object):
             )
 
             # 低速で移動（最大4cm/s）
-            vel_x = max(-0.04, min(0.04, error_forward * 0.8))
-            vel_y = max(-0.04, min(0.04, error_left * 0.8))
+            vel_x = max(-0.06, min(0.06, error_forward * 0.9))
+            vel_y = max(-0.06, min(0.06, error_left * 0.9))
 
             omni_base.cmd_vel(vel_x, vel_y, 0.0)
             rospy.sleep(0.2)
@@ -901,62 +901,62 @@ class WrsMainController(object):
                  target_x=0.36, target_y=0.35, target_deg=-90.0,
                  lift=0.0, arm_flex = -1.7, grasp_y=0.32, pull_dist=0.3),
             dict(name="右下", waypoint="drawer",
-                 target_x=0.07, target_y=0.35, target_deg=-90.0,
-                 lift=0.0, arm_flex = -1.7, grasp_y=0.32, pull_dist=0.25),
+                 target_x=0.07, target_y=0.34, target_deg=-90.0,
+                 lift=0.0, arm_flex = -1.6, grasp_y=0.32, pull_dist=0.25),
             dict(name="右上", waypoint="drawer",
-                 target_x=0.07, target_y=0.35, target_deg=-90.0,
-                 lift=0.25, arm_flex = -1.6, grasp_y=0.32, pull_dist=0.3),
+                 target_x=0.07, target_y=0.34, target_deg=-90.0,
+                 lift=0.23, arm_flex = -1.5, grasp_y=0.25, pull_dist=0.3),
         ]
 
         for drawer in drawers:
             self.open_drawer(**drawer)
 
         
-        # # 物体探索、把持処理
-        # hsr_position = [
-        #     ("tall_table", "look_at_tall_table"),
-        #     ("near_long_table_l", "look_at_near_floor"),
-        #     ("long_table_r", "look_at_tall_table"),
-        # ]
+        # 物体探索、把持処理
+        hsr_position = [
+            ("tall_table", "look_at_tall_table"),
+            ("near_long_table_l", "look_at_near_floor"),
+            ("long_table_r", "look_at_tall_table"),
+        ]
 
-        # for plc, pose in hsr_position:
-        #     for _ in range(self.DETECT_CNT):
-        #         # 移動と視線指示
-        #         self.goto_name(plc)
-        #         self.change_pose(pose)
-        #         gripper.command(0)
+        for plc, pose in hsr_position:
+            for _ in range(self.DETECT_CNT):
+                # 移動と視線指示
+                self.goto_name(plc)
+                self.change_pose(pose)
+                gripper.command(0)
 
-        #         # 把持対象の有無チェック
-        #         detected_objs = self.get_latest_detection()
-        #         graspable_obj = self.get_most_graspable_obj(detected_objs.bboxes)
+                # 把持対象の有無チェック
+                detected_objs = self.get_latest_detection()
+                graspable_obj = self.get_most_graspable_obj(detected_objs.bboxes)
 
-        #         if graspable_obj is None:
-        #             rospy.logwarn("Cannot determine object to grasp. Grasping is aborted.")
-        #             continue
-        #         label = graspable_obj["label"]
-        #         grasp_bbox = graspable_obj["bbox"]
-        #         deposit = self.where_to_put(label)
-        #         place, into_pose = deposit["waypoint"], deposit["pose"]
-        #         if (place not in self.coordinates["positions"] or
-        #                 into_pose not in self.poses):
-        #             rospy.logwarn("Cannot sort %s into %s: configure its waypoint and pose.",
-        #                           label, deposit["destination"])
-        #             continue
-        #         rospy.loginfo("sort %s (%s) into %s", label, deposit["category"],
-        #                       deposit["destination"])
-        #         # TODO ラベル名を確認するためにコメントアウトを外す
-        #         rospy.loginfo("grasp the " + label)
+                if graspable_obj is None:
+                    rospy.logwarn("Cannot determine object to grasp. Grasping is aborted.")
+                    continue
+                label = graspable_obj["label"]
+                grasp_bbox = graspable_obj["bbox"]
+                deposit = self.where_to_put(label)
+                place, into_pose = deposit["waypoint"], deposit["pose"]
+                if (place not in self.coordinates["positions"] or
+                        into_pose not in self.poses):
+                    rospy.logwarn("Cannot sort %s into %s: configure its waypoint and pose.",
+                                  label, deposit["destination"])
+                    continue
+                rospy.loginfo("sort %s (%s) into %s", label, deposit["category"],
+                              deposit["destination"])
+                # TODO ラベル名を確認するためにコメントアウトを外す
+                rospy.loginfo("grasp the " + label)
 
-        #         # 把持対象がある場合は把持関数実施
-        #         grasp_pos = self.get_grasp_coordinate(grasp_bbox)
-        #         self.change_pose("grasp_on_table")
-        #         if not self.exec_graspable_method(grasp_pos, label):
-        #             self.change_pose("all_neutral")
-        #             continue
-        #         self.change_pose("all_neutral")
+                # 把持対象がある場合は把持関数実施
+                grasp_pos = self.get_grasp_coordinate(grasp_bbox)
+                self.change_pose("grasp_on_table")
+                if not self.exec_graspable_method(grasp_pos, label):
+                    self.change_pose("all_neutral")
+                    continue
+                self.change_pose("all_neutral")
 
-        #         # binに入れる
-        #         self.put_in_place(place, into_pose)
+                # binに入れる
+                self.put_in_place(place, into_pose)
 
     def execute_task2a(self):
         """
