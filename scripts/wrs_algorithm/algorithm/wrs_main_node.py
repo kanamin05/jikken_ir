@@ -37,7 +37,7 @@ class WrsMainController(object):
     GRASP_BACK = {"z": 0.05, "xy": 0.1}
     HAND_PALM_OFFSET = 0.05  # hand_palm_linkは指の付け根なので、把持のために少しずらす必要がある
     HAND_PALM_Z_OFFSET = 0.075
-    DETECT_CNT = 20
+    DETECT_CNT = 10
     TROFAST_Y_OFFSET = 0.2
 
     def __init__(self):
@@ -166,10 +166,23 @@ class WrsMainController(object):
         BBox情報から把持座標を取得する
         """
         # BBox情報からtfを生成して、座標を取得
-        self.tf_from_bbox_clt.call(            SetTransformFromBBoxRequest(bbox=bbox, frame=self.GRASP_TF_NAME))
-        rospy.sleep(1.0)  # tfが安定するのを待つ
-        return self.get_relative_coordinate("map", self.GRASP_TF_NAME).translation
+        self.tf_from_bbox_clt.call(
+            SetTransformFromBBoxRequest(
+                bbox=bbox,
+                frame=self.GRASP_TF_NAME
+            )
+        )
 
+        rospy.sleep(1.0)
+
+        transform = self.get_relative_coordinate(
+            "map", self.GRASP_TF_NAME
+        )
+        if transform is None:
+            return None
+
+        return transform.translation
+    
     @classmethod
     def get_most_graspable_bbox(cls, obj_list):
         """
@@ -187,26 +200,47 @@ class WrsMainController(object):
         """
         extracted = []
         extract_str = "detected object list\n"
-        ignore_str  = ""
+        ignore_str = ""
+
         for obj in obj_list:
-            info_str = "{:<15}({:.2%}, {:3d}, {:3d}, {:3d}, {:3d})\n".format(obj.label, obj.score, obj.x, obj.y, obj.w, obj.h)
+            info_str = (
+                "{:<15}({:.2%}, {:3d}, {:3d}, {:3d}, {:3d})\n"
+            ).format(
+                obj.label, obj.score, obj.x, obj.y, obj.w, obj.h
+            )
+
             if obj.label in cls.IGNORE_LIST:
                 ignore_str += "- ignored  : " + info_str
             else:
                 score = cls.calc_score_bbox(obj)
-                extracted.append({"bbox": obj, "score": score, "label": obj.label})
-                extract_str += "- extracted: {:07.3f} ".format(score) + info_str
+                extracted.append({
+                    "bbox": obj,
+                    "score": score,
+                    "label": obj.label
+                })
+                extract_str += (
+                    "- extracted: {:07.3f} ".format(score) + info_str
+                )
 
         rospy.loginfo(extract_str + ignore_str)
 
         # つかむべきかのscoreが一番高い物体を返す
-        for obj_info in sorted(extracted, key=lambda x: x["score"], reverse=True):
-            obj      = obj_info["bbox"]
-            info_str = "{} ({:.2%}, {:3d}, {:3d}, {:3d}, {:3d})\n".format(obj.label, obj.score, obj.x, obj.y, obj.w, obj.h )
+        for obj_info in sorted(
+            extracted,
+            key=lambda x: x["score"],
+            reverse=True
+        ):
+            obj = obj_info["bbox"]
+
+            info_str = (
+                "{} ({:.2%}, {:3d}, {:3d}, {:3d}, {:3d})\n"
+            ).format(
+                obj.label, obj.score, obj.x, obj.y, obj.w, obj.h
+            )
+
             rospy.loginfo("selected bbox: " + info_str)
             return obj_info
 
-        # objが一つもない場合は、Noneを返す
         return None
 
     @classmethod
@@ -216,32 +250,90 @@ class WrsMainController(object):
         """
         gravity_x = bbox.x + bbox.w / 2
         gravity_y = bbox.y + bbox.h / 2
-        xy_diff   = abs(320- gravity_x) / 320 + abs(360 - gravity_y) / 240
 
-        return 1 / xy_diff
+        xy_diff = (
+            abs(320 - gravity_x) / 320
+            + abs(360 - gravity_y) / 240
+        )
+
+        return 1 / max(xy_diff, 0.001)
 
     @classmethod
     def get_most_graspable_bboxes_by_label(cls, obj_list, label):
         """
-        label名が一致するオブジェクトの中から最も把持すべき物体のbboxを返す
+        label名が一致するオブジェクトの中から
+        最も把持すべき物体のbboxを返す
         """
-        match_objs = [obj for obj in obj_list if obj.label in label]
+        match_objs = [
+            obj for obj in obj_list
+            if obj.label == label
+        ]
+
         if not match_objs:
-            rospy.logwarn("Cannot find a object which labeled with similar name.")
+            rospy.logwarn(
+                "Cannot find a object which labeled with similar name."
+            )
             return None
+
         return cls.get_most_graspable_bbox(match_objs)
 
     @staticmethod
     def extract_target_obj_and_person(instruction):
-        """
-        指示文から対象となる物体名称を抽出する
-        """
-        #TODO: 関数は未完成です。引数のinstructionを利用すること
-        rospy.loginfo("[extract_target_obj_and_person] instruction:"+  instruction)
-        target_obj    = "apple"
-        target_person = "right"
+        """指示文から対象物と左右を読み取る"""
+        import re
 
-        return target_obj, target_person
+        text = instruction.lower().replace("_", " ").replace("-", " ")
+        text = re.sub(r"\s+", " ", text)
+
+        # 検出器で使われる物体名
+        labels = [
+            "cracker_box", "sugar_box", "pudding_box",
+            "gelatin_box", "potted_meat_can", "master_chef_can",
+            "tuna_fish_can", "chips_can", "mustard_bottle",
+            "tomato_soup_can", "banana", "strawberry",
+            "apple", "lemon", "peach", "pear", "orange", "plum",
+            "mug", "cup", "bowl", "plate", "sponge"
+        ]
+
+        # 指示文で使われる別の呼び方
+        aliases = {
+            "tuna_fish_can": ["tuna can", "tuna"],
+            "master_chef_can": ["coffee can", "coffee"],
+            "potted_meat_can": ["potted meat"],
+            "chips_can": ["chips", "pringles"],
+            "tomato_soup_can": ["tomato soup"],
+            "cracker_box": ["crackers"],
+            "sugar_box": ["sugar"],
+            "pudding_box": ["pudding"],
+            "gelatin_box": ["gelatin"],
+            "mustard_bottle": ["mustard"]
+        }
+
+        matched_objects = set()
+
+        for label in labels:
+            names = [
+                label.replace("_", " ")
+            ] + aliases.get(label, [])
+
+            for name in names:
+                pattern = r"\b" + re.escape(name) + r"\b"
+                if re.search(pattern, text):
+                    matched_objects.add(label)
+                    break
+
+        matched_people = [
+            direction for direction in ("left", "right")
+            if re.search(r"\b" + direction + r"\b", text)
+        ]
+
+        if len(matched_objects) != 1 or len(matched_people) != 1:
+            rospy.logwarn(
+                "Cannot interpret instruction: %s", instruction
+            )
+            return None, None
+
+        return next(iter(matched_objects)), matched_people[0]
 
     def grasp_from_side(self, pos_x, pos_y, pos_z, yaw, pitch, roll, preliminary="-y"):
         """
@@ -402,24 +494,78 @@ class WrsMainController(object):
         self.goto_name("shelf")
         self.change_pose("look_at_shelf")
 
-        rospy.loginfo("target_obj: " + target_obj + "  target_person: " + target_person)
-        # 物体検出結果から、把持するbboxを決定
-        detected_objs = self.get_latest_detection()
-        grasp_bbox = self.get_most_graspable_bboxes_by_label(detected_objs.bboxes, target_obj)
+        rospy.loginfo(
+            "target_obj: %s  target_person: %s",
+            target_obj,
+            target_person
+        )
+
+        # 同じカメラ姿勢で、指定物体を最大３回探す
+        grasp_bbox = None
+
+        for attempt in range(1, 4):
+            if rospy.is_shutdown():
+                return
+
+            rospy.loginfo(
+                "Task2b detection attempt %d/3: target=%s",
+                attempt,
+                target_obj
+            )
+
+            detected_objs = self.get_latest_detection()
+
+            if detected_objs is not None:
+                grasp_bbox = self.get_most_graspable_bboxes_by_label(
+                    detected_objs.bboxes,
+                    target_obj
+                )
+
+            if grasp_bbox is not None:
+                rospy.loginfo(
+                    "Target found on attempt %d",
+                    attempt
+                )
+                break
+
+            rospy.logwarn(
+                "Target not found on attempt %d: %s",
+                attempt,
+                target_obj
+            )
+
+            if attempt < 3:
+                rospy.sleep(1.0)
+
         if grasp_bbox is None:
-            rospy.logwarn("Cannot find object to grasp. task2b is aborted.")
+            rospy.logwarn(
+                "Target not found after 3 attempts. Task2b aborted."
+            )
             return
 
-        # BBoxの3次元座標を取得して、その座標で把持する
+        # 物体の３次元座標を取得
         grasp_pos = self.get_grasp_coordinate(grasp_bbox)
+
+        if grasp_pos is None:
+            rospy.logwarn("Cannot obtain object coordinates")
+            return
+
+        # 把持は１回だけ行う
         self.change_pose("grasp_on_shelf")
         self.grasp_from_front_side(grasp_pos)
         self.change_pose("all_neutral")
 
-        # target_personの前に持っていく
+        # 指示された人へ運ぶ
+        person_places = {
+            "left": "person_a",
+            "right": "person_b"
+        }
+
         self.change_pose("look_at_near_floor")
-        self.goto_name("person_b")    # TODO: 配達先が固定されているので修正
+        self.goto_name(person_places[target_person])
         self.change_pose("deliver_to_human")
+
+        # 人の前で受け渡す
         rospy.sleep(10.0)
         gripper.command(1)
         self.change_pose("all_neutral")
@@ -829,24 +975,46 @@ class WrsMainController(object):
         whole_body.move_to_go()
 
     def execute_task2b(self):
-        """
-        task2bを実行する
-        """
+        """有効な指示を待ち、指定された物を届ける"""
         rospy.loginfo("#### start Task 2b ####")
 
-        # 命令文を取得
-        if self.instruction_list:
-            latest_instruction = self.instruction_list[-1]
-            rospy.loginfo("recieved instruction: %s", latest_instruction)
-        else:
-            rospy.logwarn("instruction_list is None")
+        self.change_pose("all_neutral")
+        if self.goto_name("shelf") is False:
+            rospy.logwarn("Cannot move to shelf")
+            return
+        self.change_pose("look_at_shelf")
+
+        target_obj = None
+        target_person = None
+
+        for _ in range(30):
+            if rospy.is_shutdown():
+                return
+
+            # 新しいメッセージから順に指示を探す
+            for instruction in reversed(self.instruction_list[:]):
+                obj, person = self.extract_target_obj_and_person(
+                    instruction
+                )
+
+                if obj and person:
+                    target_obj = obj
+                    target_person = person
+                    rospy.loginfo(
+                        "received instruction: %s", instruction
+                    )
+                    break
+
+            if target_obj and target_person:
+                break
+
+            rospy.sleep(1.0)
+
+        if not target_obj or not target_person:
+            rospy.logwarn("No valid instruction received")
             return
 
-        # 命令内容を解釈
-        target_obj, target_person = self.extract_target_obj_and_person(latest_instruction)
-
-        # 指定したオブジェクトを指定した配達先へ
-        if target_obj and target_person:            self.deliver_to_target(target_obj, target_person)
+        self.deliver_to_target(target_obj, target_person)
 
     def run(self):
         """
@@ -855,7 +1023,7 @@ class WrsMainController(object):
         self.change_pose("all_neutral")
         self.execute_task1()
         # self.execute_task2a()
-        # self.execute_task2b()
+        self.execute_task2b()
 
 
 def main():
