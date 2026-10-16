@@ -387,10 +387,10 @@ class WrsMainController(object):
         pos_y+=self.HAND_PALM_OFFSET
 
         # 予備動作-押し込む
-        whole_body.move_end_effector_pose( pos_x, pos_y +    self.TROFAST_Y_OFFSET * 1.5, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(pos_x, pos_y +    self.TROFAST_Y_OFFSET * 1.5, pos_z, yaw, pitch, roll)
         gripper.command(0)
-        whole_body.move_end_effector_pose(  pos_x, pos_y + self.TROFAST_Y_OFFSET, pos_z, yaw, pitch, roll)
-        whole_body.move_end_effector_pose(            pos_x, pos_y, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(pos_x, pos_y + self.TROFAST_Y_OFFSET, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(pos_x, pos_y, pos_z, yaw, pitch, roll)
 
         self.change_pose("all_neutral")
 
@@ -492,8 +492,10 @@ class WrsMainController(object):
 
         return x_line[current_stp]
     
-    def correct_drawer_position_mako(self, target_x, target_y):
-        """TFを使ってx・y座標を低速で補正する"""
+    def correct_drawer_position(self, target_x, target_y):
+        """62400746 阿部真子
+        TFを使ってx・y座標を低速で補正する
+        """
 
         for i in range(50):
             trans = self.get_relative_coordinate(
@@ -515,8 +517,8 @@ class WrsMainController(object):
                 i + 1, x, y, error_x, error_y
             )
 
-            # x・yともに1.5cm以内なら成功
-            if abs(error_x) < 0.015 and abs(error_y) < 0.015:
+            # x・yともに1.0cm以内なら成功
+            if abs(error_x) < 0.010 and abs(error_y) < 0.010:
                 omni_base.cmd_vel(0.0, 0.0, 0.0)
                 rospy.loginfo("位置補正成功")
                 return True
@@ -551,8 +553,10 @@ class WrsMainController(object):
         rospy.logwarn("位置補正が完了しませんでした")
         return False
 
-    def correct_drawer_pose_mako(self, target_x, target_y, target_deg):
-        """角度のみを低速で補正する"""
+    def correct_drawer_pose(self, target_x, target_y, target_deg):
+        """62400746 阿部真子
+        角度のみを低速で補正する
+        """
 
         for i in range(100):
             trans = self.get_relative_coordinate(
@@ -604,8 +608,10 @@ class WrsMainController(object):
         rospy.logwarn("角度補正が完了しませんでした")
         return False
 
-    def move_forward_backward_mako(self, duration=2.0, speed=0.05):
-        """指定した秒数だけ前進・後進する"""
+    def move_forward_backward(self, duration=2.0, speed=0.05):
+        """62400746 阿部真子
+        指定した秒数だけ前進・後進する
+        """
 
         rate = rospy.Rate(10)
         start = rospy.Time.now()
@@ -624,267 +630,142 @@ class WrsMainController(object):
         finally:
             # 移動終了後は必ず停止
             omni_base.cmd_vel(0.0, 0.0, 0.0)
-    
+
+    def get_base_xy(self):
+        """62400746 阿部真子
+        base_footprintのmap座標(x, y)を返す。取れなければNone
+        """
+        try:
+            t = self.tf_buffer.lookup_transform(
+                "map", "base_footprint", rospy.Time(0), rospy.Duration(1.0))
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException):
+            return None
+        return t.transform.translation.x, t.transform.translation.y
+
+    def move_to_y(self, target_y, max_speed=0.05, timeout=30.0):
+        """62400746 阿部真子
+        yaw=-90度(-y向き)のとき、base_footprintのmap y座標がtarget_yになるまで動く。
+        y > target_y なら前進、y < target_y なら後退する。
+        """
+        rate = rospy.Rate(10)
+        start = rospy.Time.now()
+        try:
+            while not rospy.is_shutdown():
+                if (rospy.Time.now() - start).to_sec() > timeout:
+                    rospy.logwarn("move_to_y: タイムアウト")
+                    return False
+
+                pos = self.get_base_xy()
+                if pos is None:
+                    return False
+
+                error = pos[1] - target_y
+                if abs(error) < 0.005:
+                    rospy.loginfo("move_to_y: 到達 y=%.3f", pos[1])
+                    return True
+
+                # 目標に近づくほど減速。遅すぎて止まらないよう下限を設ける
+                speed = max(-max_speed, min(max_speed, error * 2.0))
+                if abs(speed) < 0.015:
+                    speed = math.copysign(0.015, speed)
+
+                omni_base.cmd_vel(speed, 0.0, 0.0)
+                rate.sleep()
+        finally:
+            omni_base.cmd_vel(0.0, 0.0, 0.0)
+        return False
+
+    def align_to_drawer(self, target_x, target_y, target_deg, retry=3):
+        """62400746 阿部真子
+        角度と位置を補正する。両方が許容内に入るまで最大retry回繰り返す
+        """
+        for _ in range(retry):
+            ok_pos = self.correct_drawer_position(target_x, target_y)
+            ok_pose = self.correct_drawer_pose(target_x, target_y, target_deg)
+            if ok_pose and ok_pos:
+                return True
+        rospy.logwarn("align_to_drawer: 補正が完了しませんでした")
+        return False
+
+    def open_drawer(self, name, waypoint,
+                target_x, target_y, target_deg,
+                lift, arm_flex, grasp_y, pull_dist):
+        """62400746 阿部真子
+        引き出しを1つ開ける。
+        grasp_y : 掴む位置のbase_footprintのy座標
+        pull_dist: 引く距離[m]
+        """
+        rospy.loginfo("==== %s ====", name)
+        if not self.goto_name(waypoint):
+            return False
+        omni_base.cmd_vel(0.0, 0.0, 0.0)
+        rospy.sleep(0.5)
+        gripper.command(1)
+
+        # 腕を動かす前に補正
+        self.align_to_drawer(target_x, target_y, target_deg)
+
+        # アームの高さ・姿勢を設定
+        grasp_pose = dict(self.poses["grasp_on_table"])
+        grasp_pose["arm_lift_joint"] = lift
+        grasp_pose["arm_flex_joint"] = arm_flex
+        grasp_pose["wrist_flex_joint"] = 0.0
+        grasp_pose["wrist_roll_joint"] = 1.5
+        whole_body.move_to_joint_positions(grasp_pose)
+        rospy.sleep(1.0)
+
+        # 腕を動かした後にもう一度補正（角度＋位置）
+        self.align_to_drawer(target_x, target_y, target_deg)
+        rospy.sleep(0.5)
+
+        # 取っ手に近づく（yで止める）
+        self.move_to_y(grasp_y)
+        rospy.sleep(0.5)
+        pos = self.get_base_xy()
+        if pos is not None:
+            rospy.loginfo("%s 掴む直前: x=%.3f y=%.3f", name, pos[0], pos[1])
+
+        # 取っ手をつかむ
+        gripper.command(0)
+        rospy.sleep(1.0)
+
+        # 引き出す（yで止める）
+        self.move_to_y(grasp_y + pull_dist)
+
+        # 離して、さらに後退
+        gripper.command(1)
+        rospy.sleep(1.0)
+        gripper.command(1)
+        rospy.sleep(1.0)
+        self.move_to_y(grasp_y + pull_dist + 0.1)
+
+        self.change_pose("all_neutral")
+        rospy.sleep(0.5)
+        return True
+
     def execute_task1(self):
-        rospy.loginfo("#### Drawer Position Test ####")
+        """62400746 阿部真子
+        3つの引き出し（左下・右下・右上）を順番に開ける
+        """
+        rospy.loginfo("#### Drawer Test ####")
 
-        # =====左下の引き出し=====
+        drawers = [
+            dict(name="左下", waypoint="stair_like_drawer",
+                 target_x=0.36, target_y=0.35, target_deg=-90.0,
+                 lift=0.0, arm_flex = -1.7, grasp_y=0.32, pull_dist=0.3),
+            dict(name="右下", waypoint="drawer",
+                 target_x=0.07, target_y=0.35, target_deg=-90.0,
+                 lift=0.0, arm_flex = -1.7, grasp_y=0.32, pull_dist=0.25),
+            dict(name="右上", waypoint="drawer",
+                 target_x=0.07, target_y=0.35, target_deg=-90.0,
+                 lift=0.25, arm_flex = -1.6, grasp_y=0.32, pull_dist=0.3),
+        ]
 
-        if not self.goto_name("stair_like_drawer"):
-            return
+        for drawer in drawers:
+            self.open_drawer(**drawer)
 
-        omni_base.cmd_vel(0.0, 0.0, 0.0)
-        rospy.sleep(1.0)
-
-        # グリッパを先に開く
-        gripper.command(1)
-
-        # 位置補正
-        if not self.correct_drawer_position_mako(
-            target_x=0.375,
-            target_y=0.36
-        ):
-            rospy.logwarn("左下：位置補正に失敗しました")
-        rospy.sleep(1.0)
-
-        # 角度補正
-        if not self.correct_drawer_pose_mako(
-            target_x=0.375,
-            target_y=0.36,
-            target_deg=-89.0
-        ):
-            rospy.logwarn("左下：角度補正に失敗しました")
-
-        rospy.loginfo("左下：位置・角度補正が完了しました")
-
-        rospy.sleep(1.0)
-
-        # アームの高さ・姿勢を設定
-        grasp_pose = dict(self.poses["grasp_on_table"])
-        grasp_pose["arm_lift_joint"] = 0.0
-        grasp_pose["arm_flex_joint"] = -1.7 #ここ
-        grasp_pose["wrist_flex_joint"] = 0.0
-        grasp_pose["wrist_roll_joint"] = 1.5
-
-        whole_body.move_to_joint_positions(grasp_pose)
-        rospy.sleep(1.0)
-
-
-        # もう一度角度補正
-        if not self.correct_drawer_pose_mako(
-            target_x=0.375,
-            target_y=0.36,
-            target_deg=-90.0
-        ):
-            rospy.logwarn("左下：角度補正に失敗しました")
-
-        rospy.sleep(1.0)
-
-        # 取っ手に近づく
-        self.move_forward_backward_mako(
-            duration=0.7,
-            speed=0.05
-        )
-
-        # 取っ手をつかむ
-        gripper.command(0)
-        rospy.sleep(1.0)
-
-        # 引き出す（まずは低速で試す）
-        self.move_forward_backward_mako(
-            duration=9.0,
-            speed=-0.05
-        )
-
-        # グリッパを開いて離す
-        gripper.command(1)
-        rospy.sleep(1.0)
-
-        # さらに後退
-        self.move_forward_backward_mako(
-            duration=2.0,
-            speed=-0.05
-        )
-
-        self.change_pose("all_neutral")
-        rospy.sleep(1.0)
-
-
-        # =====右下の引き出し=====
-
-        if not self.goto_name("drawer"):
-            return
-
-        omni_base.cmd_vel(0.0, 0.0, 0.0)
-        rospy.sleep(1.0)
-
-        # グリッパを開く
-        gripper.command(1)
-
-        # 位置補正
-        if not self.correct_drawer_position_mako(
-            target_x=0.065,
-            target_y=0.33
-        ):
-            rospy.logwarn("右下：位置補正に失敗しました")
-
-        # 角度補正
-        if not self.correct_drawer_pose_mako(
-            target_x=0.065,
-            target_y=0.33,
-            target_deg=-88.0
-        ):
-            rospy.logwarn("右下：角度補正に失敗しました")
-
-        rospy.loginfo("右下：位置・角度補正が完了しました")
-
-        # アームの高さ・姿勢を設定
-        grasp_pose = dict(self.poses["grasp_on_table"])
-        grasp_pose["arm_lift_joint"] = 0.0
-        grasp_pose["arm_flex_joint"] = -1.7
-        grasp_pose["wrist_flex_joint"] = 0.0
-        grasp_pose["wrist_roll_joint"] = 1.5
-
-        whole_body.move_to_joint_positions(grasp_pose)
-        rospy.sleep(1.0)
-
-        # もう一度角度補正
-        if not self.correct_drawer_pose_mako(
-            target_x=0.065,
-            target_y=0.33,
-            target_deg=-90.0
-        ):
-            rospy.logwarn("右下：角度補正に失敗しました")
-
-        rospy.sleep(1.0)
-
-        # 取っ手に近づく
-        self.move_forward_backward_mako(
-            duration=1.9,
-            speed=0.05
-        )
-
-        # # もう一度角度補正
-        # if not self.correct_drawer_pose_mako(
-        #     target_x=0.065,
-        #     target_y=0.33,
-        #     target_deg=-88.0
-        # ):
-        #     rospy.logwarn("右下：角度補正に失敗しました")
-
-        rospy.sleep(1.0)
-
-        # 取っ手をつかむ
-        gripper.command(0)
-        rospy.sleep(1.0)
-
-        # 引き出す
-        self.move_forward_backward_mako(
-            duration=8.0,
-            speed=-0.05
-        )
-
-        # グリッパを開いて離す
-        gripper.command(1)
-        rospy.sleep(1.0)
-
-        # さらに後退
-        self.move_forward_backward_mako(
-            duration=2.0,
-            speed=-0.05
-        )
-
-        self.change_pose("all_neutral")
-        rospy.sleep(1.0)
-
-
-        # =====右上の引き出し=====
-
-        if not self.goto_name("drawer"):
-            return
-
-        omni_base.cmd_vel(0.0, 0.0, 0.0)
-        rospy.sleep(1.0)
-
-        # グリッパを開く
-        gripper.command(1)
-
-        # 位置補正
-        if not self.correct_drawer_position_mako(
-            target_x=0.065,
-            target_y=0.33
-        ):
-            rospy.logwarn("右上：位置補正に失敗しました")
-
-        # 角度補正
-        if not self.correct_drawer_pose_mako(
-            target_x=0.065,
-            target_y=0.33,
-            target_deg=-88.0
-        ):
-            rospy.logwarn("右上：角度補正に失敗しました")
-
-        rospy.loginfo("右上：位置・角度補正が完了しました")
-        rospy.sleep(1.0)
-
-        # アームの高さ・姿勢を設定
-        grasp_pose = dict(self.poses["grasp_on_table"])
-
-        # 右上の引き出し用の高さ
-        grasp_pose["arm_lift_joint"] = 0.24
-        grasp_pose["arm_flex_joint"] = -1.65
-        grasp_pose["wrist_flex_joint"] = 0.0
-        grasp_pose["wrist_roll_joint"] = 1.5
-
-        whole_body.move_to_joint_positions(grasp_pose)
-        rospy.sleep(1.0)
         
-        # もう一度角度補正
-        if not self.correct_drawer_pose_mako(
-            target_x=0.065,
-            target_y=0.33,
-            target_deg=-88.0
-        ):
-            rospy.logwarn("右上：角度補正に失敗しました")
-
-        rospy.sleep(1.0)
-
-        # 取っ手に近づく
-        self.move_forward_backward_mako(
-            duration=1.7,
-            speed=0.05
-        )
-
-        # もう一度角度補正
-        if not self.correct_drawer_pose_mako(
-            target_x=0.065,
-            target_y=0.33,
-            target_deg=-90.0
-        ):
-            rospy.logwarn("右上：角度補正に失敗しました")
-
-        # 取っ手をつかむ
-        gripper.command(0)
-        rospy.sleep(1.0)
-
-        # 引き出す
-        self.move_forward_backward_mako(
-            duration=8.0,
-            speed=-0.05
-        )
-
-        # グリッパを開いて離す
-        gripper.command(1)
-        rospy.sleep(1.0)
-
-        # さらに後退
-        self.move_forward_backward_mako(
-            duration=2.0,
-            speed=-0.05
-        )
-
-        self.change_pose("all_neutral")
-        rospy.sleep(1.0)
         # # 物体探索、把持処理
         # hsr_position = [
         #     ("tall_table", "look_at_tall_table"),
