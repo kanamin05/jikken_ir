@@ -200,6 +200,7 @@ class WrsMainController(object):
 
     def get_grasp_coordinate(self, bbox):
         """
+        62405658 加藤かのん
         BBox情報から把持座標を取得する
         """
         # BBox情報からtfを生成して、座標を取得
@@ -299,6 +300,7 @@ class WrsMainController(object):
     @classmethod
     def get_most_graspable_bboxes_by_label(cls, obj_list, label):
         """
+        62405658 加藤かのん
         label名が一致するオブジェクトの中から
         最も把持すべき物体のbboxを返す
         """
@@ -317,7 +319,9 @@ class WrsMainController(object):
 
     @staticmethod
     def extract_target_obj_and_person(instruction):
-        """指示文から対象物と左右を読み取る"""
+        """
+        62405658 加藤かのん
+        指示文から対象物と左右を読み取る"""
         import re
 
         text = instruction.lower().replace("_", " ").replace("-", " ")
@@ -606,6 +610,7 @@ class WrsMainController(object):
 
     def deliver_to_target(self, target_obj, target_person):
         """
+        62405658 加藤かのん
         棚で取得したものを人に渡す。
         """
         self.change_pose("look_at_near_floor")
@@ -1192,7 +1197,9 @@ class WrsMainController(object):
         return True
 
     def execute_task2b(self):
-        """有効な指示を待ち、指定された物を届ける"""
+        """
+        62405658 加藤かのん
+        有効な指示を待ち、指定された物を届ける"""
         rospy.loginfo("#### start Task 2b ####")
 
         self.change_pose("all_neutral")
