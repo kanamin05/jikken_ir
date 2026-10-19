@@ -442,31 +442,31 @@ class WrsMainController(object):
         self.change_pose("all_neutral")
         self.change_pose(into_pose)
         gripper.command(1)
-        rospy.sleep(5.0)
+        rospy.sleep(2.0)
         self.change_pose("all_neutral")
 
-    def pull_out_trofast(self, x, y, z, yaw, pitch, roll):
-        # trofastの引き出しを引き出す
-        # stair_like_drawer へ移動する
-        self.goto_name("stair_like_drawer")
-        # grasp_on_table の姿勢になる
-        self.change_pose("grasp_on_table")
-        a = True  # TODO 不要な変数
+    # def pull_out_trofast(self, x, y, z, yaw, pitch, roll):
+    #     # trofastの引き出しを引き出す
+    #     # stair_like_drawer へ移動する
+    #     self.goto_name("stair_like_drawer")
+    #     # grasp_on_table の姿勢になる
+    #     self.change_pose("grasp_on_table")
+    #     a = True  # TODO 不要な変数
 
-        # グリッパを開く
-        gripper.command(1)
-        # アーム先端を指定された位置と姿勢へ移動させる関数
-        whole_body.move_end_effector_pose(x, y + self.TROFAST_Y_OFFSET, z, yaw, pitch, roll)
-        # 取っ手にアームを近づける
-        whole_body.move_end_effector_pose(x, y, z, yaw, pitch, roll)
-        # グリッパを閉じる
-        gripper.command(0)
-        # 引き出しを引く
-        whole_body.move_end_effector_pose(x, y + self.TROFAST_Y_OFFSET, z, yaw,  pitch, roll)
-        # グリッパを開く
-        gripper.command(1)
-        # アームを元の姿勢に戻す
-        self.change_pose("all_neutral")
+    #     # グリッパを開く
+    #     gripper.command(1)
+    #     # アーム先端を指定された位置と姿勢へ移動させる関数
+    #     whole_body.move_end_effector_pose(x, y + self.TROFAST_Y_OFFSET, z, yaw, pitch, roll)
+    #     # 取っ手にアームを近づける
+    #     whole_body.move_end_effector_pose(x, y, z, yaw, pitch, roll)
+    #     # グリッパを閉じる
+    #     gripper.command(0)
+    #     # 引き出しを引く
+    #     whole_body.move_end_effector_pose(x, y + self.TROFAST_Y_OFFSET, z, yaw,  pitch, roll)
+    #     # グリッパを開く
+    #     gripper.command(1)
+    #     # アームを元の姿勢に戻す
+    #     self.change_pose("all_neutral")
 
     def push_in_trofast(self, pos_x, pos_y, pos_z, yaw, pitch, roll):
         """
@@ -686,9 +686,15 @@ class WrsMainController(object):
                 + math.cos(yaw) * error_y
             )
 
-            # 低速で移動（最大4cm/s）
-            vel_x = max(-0.06, min(0.06, error_forward * 0.9))
-            vel_y = max(-0.06, min(0.06, error_left * 0.9))
+            # 低速で移動（最大8cm/s）
+            vel_x = max(-0.08, min(0.08, error_forward * 1.3))
+            vel_y = max(-0.08, min(0.08, error_left * 1.3))
+
+            # 小さすぎる指令では台車が動かなかったので、下限を設ける
+            if abs(error_forward) > 0.005 and abs(vel_x) < 0.03:
+                vel_x = math.copysign(0.03, vel_x)
+            if abs(error_left) > 0.005 and abs(vel_y) < 0.03:
+                vel_y = math.copysign(0.03, vel_y)
 
             omni_base.cmd_vel(vel_x, vel_y, 0.0)
             rospy.sleep(0.2)
@@ -729,7 +735,7 @@ class WrsMainController(object):
                 i + 1, current_deg, target_deg, error_deg
             )
 
-            if abs(error_deg) < 0.8:
+            if abs(error_deg) < 0.5:
                 omni_base.cmd_vel(0.0, 0.0, 0.0)
                 rospy.loginfo("角度補正成功")
                 return True
@@ -901,11 +907,11 @@ class WrsMainController(object):
                  target_x=0.36, target_y=0.35, target_deg=-90.0,
                  lift=0.0, arm_flex = -1.7, grasp_y=0.32, pull_dist=0.3),
             dict(name="右下", waypoint="drawer",
-                 target_x=0.07, target_y=0.34, target_deg=-90.0,
-                 lift=0.0, arm_flex = -1.6, grasp_y=0.28, pull_dist=0.25),
+                 target_x=0.12, target_y=0.34, target_deg=-90.0,
+                 lift=0.0, arm_flex = -1.7, grasp_y=0.26, pull_dist=0.25),
             dict(name="右上", waypoint="drawer",
-                 target_x=0.07, target_y=0.34, target_deg=-90.0,
-                 lift=0.22, arm_flex = -1.5, grasp_y=0.28, pull_dist=0.3),
+                 target_x=0.12, target_y=0.34, target_deg=-90.0,
+                 lift=0.15, arm_flex = -1.5, grasp_y=0.23, pull_dist=0.3),
         ]
 
         for drawer in drawers:

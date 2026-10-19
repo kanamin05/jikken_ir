@@ -19,7 +19,7 @@
         "chain"
       ],
       "destinations": [
-        "bin_a"
+        "drawer_left"
       ]
     },
     "tools": {
@@ -31,7 +31,7 @@
         "clamp"
       ],
       "destinations": [
-        "bin_b"
+        "drawer_bottom"
       ]
     },
     "food": {
@@ -117,16 +117,16 @@
   },
   "destinations": {
     "drawer_left": {
-      "waypoint": "bin_a_place",
-      "pose": "put_in_bin"
+      "waypoint": "drawer_left_place",
+      "pose": "put_in_drawer_low"
     },
     "drawer_top": {
       "waypoint": "bin_b_place",
       "pose": "put_in_bin"
     },
     "drawer_bottom": {
-      "waypoint": "bin_b_place",
-      "pose": "put_in_bin"
+      "waypoint":  "drawer_bottom_place",
+      "pose": "put_in_drawer_low"
     },
     "tray_a": {
       "waypoint": "bin_b_place",

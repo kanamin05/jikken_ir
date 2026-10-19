@@ -8,6 +8,15 @@
         "head_tilt_joint": 0.0,
         "head_pan_joint": 0.0
     },
+    "put_in_drawer_low": {
+        "arm_lift_joint": 0.0,
+        "arm_flex_joint": -1.3,
+        "arm_roll_joint": 0.0,
+        "wrist_flex_joint": -0.57,
+        "wrist_roll_joint": 0.0,
+        "head_tilt_joint": 0.0,
+        "head_pan_joint": 0.0
+    },
     "look_at_tall_table": {
         "arm_lift_joint": 0.0,
         "arm_flex_joint": 0.0,
