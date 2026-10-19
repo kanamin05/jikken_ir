@@ -1,0 +1,17 @@
+<launch>
+  <arg name="task2a_dqn_enabled" default="true" />
+  <arg name="fallback_forward_distance" default="0.5" />
+  <arg name="fallback_speed" default="0.1" />
+  <arg name="fallback_timeout" default="90.0" />
+  <arg name="weights" default="$(find wrs_algorithm)/config/task2a_policy_numpy.npz" />
+
+  <include file="$(find hsr_perception)/launch/pcd_to_tf.launch" />
+  <include file="$(find wrs_detector)/launch/frcnn_finetuned.launch" />
+  <include file="$(find wrs_algorithm)/launch/start_task.launch">
+    <arg name="task2a_dqn_enabled" value="$(arg task2a_dqn_enabled)" />
+    <arg name="fallback_forward_distance" value="$(arg fallback_forward_distance)" />
+    <arg name="fallback_speed" value="$(arg fallback_speed)" />
+    <arg name="fallback_timeout" value="$(arg fallback_timeout)" />
+    <arg name="weights" value="$(arg weights)" />
+  </include>
+</launch>

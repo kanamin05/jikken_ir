@@ -1,6 +1,20 @@
 <launch>
+  <arg name="task2a_dqn_enabled" default="true" />
+  <arg name="fallback_forward_distance" default="0.5" />
+  <arg name="fallback_speed" default="0.1" />
+  <arg name="fallback_timeout" default="90.0" />
+  <arg name="weights" default="$(find wrs_algorithm)/config/task2a_policy_numpy.npz" />
   <node pkg="wrs_algorithm" type="wrs_main_node.py" name="wrs_main" output="screen" required="true">
     <param name="test_mode" value="false" />
+    <param name="task2a_dqn_enabled" value="$(arg task2a_dqn_enabled)" />
+    <param name="task2a_dqn_only" value="false" />
+    <param name="task2a_fallback_forward_distance" value="$(arg fallback_forward_distance)" />
+    <param name="task2a_fallback_speed" value="$(arg fallback_speed)" />
+    <param name="task2a_fallback_timeout" value="$(arg fallback_timeout)" />
+    <param name="task2a_dqn_dry_run" value="false" />
+    <param name="task2a_dqn_weights" value="$(arg weights)" />
+    <param name="task2a_cloud_steps" value="80" />
+    <param name="task2a_cloud_step_timeout" value="25.0" />
     <param name="task2a_robot_radius" value="0.30" />
     <param name="task2a_obstacle_radius" value="0.19" />
     <param name="task2a_safety_margin" value="0.10" />

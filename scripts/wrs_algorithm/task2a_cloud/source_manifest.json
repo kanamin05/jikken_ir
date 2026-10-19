@@ -1,0 +1,22 @@
+{
+  "source": "/workspace/task2a_dqn_starter",
+  "copied_on": "2026-10-19",
+  "changes": "Sibling imports changed to relative package imports; final blank lines normalized. Navigation and mapping algorithms and weights are unchanged.",
+  "sha256": {
+    "pointcloud_obstacles.py": "f1c0269aca305079bd6e7f7012245fcdbcc8946d2b19825a70b202f7cce7bdc8",
+    "task2a_cloud_infer.py": "6f1f0586f769ee290a7c04114cfed72b36bd40b0078fc3c61c181fbf95082b16",
+    "task2a_cloud_step.py": "0f65d167203d0254949dcd1fdacb52beab00e831dcd7c907ff55cc9a9cf7e5ad",
+    "task2a_precise_run.py": "a7d02315b07b0be0a57cd8570f55666a838c6343470df7035e777fbd1df82f16",
+    "task2a_route_guard.py": "7ee6cd4147a3cebfc20b06b0bf72937f690abf0cf6744905d98db12d0dba20a2",
+    "task2a_handoff.py": "95c1ed51e7a63d381259132c54db51b9fcc39f06dd4a6a7024d8bdbc6b3e16e7",
+    "task2a_policy_numpy.npz": "ca0d0a0622f7b85a0fd66ee9a755257adb4489f89926148b63e976919c03da12"
+  },
+  "source_trailing_newlines": {
+    "pointcloud_obstacles.py": 1,
+    "task2a_cloud_infer.py": 1,
+    "task2a_cloud_step.py": 1,
+    "task2a_precise_run.py": 1,
+    "task2a_route_guard.py": 1,
+    "task2a_handoff.py": 2
+  }
+}

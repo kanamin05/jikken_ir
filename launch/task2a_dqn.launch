@@ -1,0 +1,13 @@
+<launch>
+  <arg name="dry_run" default="true" />
+  <arg name="weights" default="$(find wrs_algorithm)/config/task2a_policy_numpy.npz" />
+  <node pkg="wrs_algorithm" type="wrs_main_node.py" name="wrs_main" output="screen" required="true">
+    <param name="test_mode" value="false" />
+    <param name="task2a_dqn_enabled" value="true" />
+    <param name="task2a_dqn_only" value="true" />
+    <param name="task2a_dqn_dry_run" value="$(arg dry_run)" />
+    <param name="task2a_dqn_weights" value="$(arg weights)" />
+    <param name="task2a_cloud_steps" value="80" />
+    <param name="task2a_cloud_step_timeout" value="25.0" />
+  </node>
+</launch>

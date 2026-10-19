@@ -5,6 +5,7 @@ WRS環境内でロボットを動作させるためのメインプログラム
 """
 
 from __future__ import unicode_literals, print_function, division, absolute_import
+
 import json
 import os
 from select import select
@@ -31,51 +32,70 @@ class WrsMainController(object):
     """
     WRSのシミュレーション環境内でタスクを実行するクラス
     """
-    IGNORE_LIST = ["small_marker", "large_marker", "lego_duplo", "spatula", "nine_hole_peg_test"]
+
+    IGNORE_LIST = [
+        "small_marker", "large_marker", "lego_duplo",
+        "spatula", "nine_hole_peg_test"
+    ]
     GRASP_TF_NAME = "object_grasping"
     GRASP_BACK_SAFE = {"z": 0.05, "xy": 0.3}
     GRASP_BACK = {"z": 0.05, "xy": 0.1}
-    HAND_PALM_OFFSET = 0.05  # hand_palm_linkは指の付け根なので、把持のために少しずらす必要がある
+    HAND_PALM_OFFSET = 0.05
     HAND_PALM_Z_OFFSET = 0.075
     DETECT_CNT = 10
     TROFAST_Y_OFFSET = 0.2
     MAX_TRY_PER_PLACE = 6  # task1_1か所で掴みに行く最大回数
     MAX_FAIL_IN_ROW = 3  # task1_運べなかったことが連続でこの回数になったら次の場所へ
 
+
     def __init__(self):
         # 変数の初期化
         self.instruction_list = []
-        self.detection_list   = []
+        self.detection_list = []
 
         # configファイルの受信
-        self.coordinates = self.load_json(self.get_path(["config", "coordinates.json"]))
-        self.poses       = self.load_json(self.get_path(["config", "poses.json"]))
+        self.coordinates = self.load_json(
+            self.get_path(["config", "coordinates.json"])
+        )
+        self.poses = self.load_json(
+            self.get_path(["config", "poses.json"])
+        )
 
         self.sorting = self.load_json(self.get_path(["config", "object_sorting.json"]))
 
         # ROS通信関連の初期化
         tf_from_bbox_srv_name = "set_tf_from_bbox"
         rospy.wait_for_service(tf_from_bbox_srv_name)
-        self.tf_from_bbox_clt = rospy.ServiceProxy(tf_from_bbox_srv_name, SetTransformFromBBox)
+        self.tf_from_bbox_clt = rospy.ServiceProxy(
+            tf_from_bbox_srv_name, SetTransformFromBBox
+        )
 
         obj_detection_name = "detection/get_object_detection"
         rospy.wait_for_service(obj_detection_name)
-        self.detection_clt = rospy.ServiceProxy(obj_detection_name, GetObjectDetection)
+        self.detection_clt = rospy.ServiceProxy(
+            obj_detection_name, GetObjectDetection
+        )
 
-        self.tf_buffer   = tf2_ros.Buffer()
+        self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.instruction_sub = rospy.Subscriber("/message",    String, self.instruction_cb, queue_size=10)
-        self.detection_sub   = rospy.Subscriber("/detect_msg", String, self.detection_cb,   queue_size=10)
+        self.instruction_sub = rospy.Subscriber(
+            "/message", String, self.instruction_cb, queue_size=10
+        )
+        self.detection_sub = rospy.Subscriber(
+            "/detect_msg", String, self.detection_cb, queue_size=10
+        )
 
     @staticmethod
     def get_path(pathes, package="wrs_algorithm"):
         """
-        ROSパッケージ名とファイルまでのパスを指定して、ファイルのパスを取得する
+        ROSパッケージ名とファイルまでのパスを指定して、
+        ファイルのパスを取得する
         """
-        if not pathes:  # check if the list is empty
+        if not pathes:
             rospy.logerr("Can NOT resolve file path.")
             raise ValueError("You must specify the path to file.")
+
         pkg_path = rospkg.RosPack().get_path(package)
         path = os.path.join(*pathes)
         return os.path.join(pkg_path, path)
@@ -112,9 +132,15 @@ class WrsMainController(object):
             stamp = rospy.Time(0) if latest else rospy.Time.now()
             trans = self.tf_buffer.lookup_transform(parent, child, stamp, rospy.Duration(4.0))
             return trans.transform
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException):
-            log_str = "failed to get transform between [{}] and [{}]\n".format(parent, child)
+
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException
+        ):
+            log_str = "failed to get transform between [{}] and [{}]\n".format(
+                parent, child
+            )
             log_str += traceback.format_exc()
             rospy.logerr(log_str)
             return None
@@ -125,7 +151,10 @@ class WrsMainController(object):
         """
         if name in self.coordinates["positions"].keys():
             pos = self.coordinates["positions"][name]
-            rospy.loginfo("go to [%s](%.2f, %.2f, %.2f)", name, pos[0], pos[1], pos[2])
+            rospy.loginfo(
+                "go to [%s](%.2f, %.2f, %.2f)",
+                name, pos[0], pos[1], pos[2]
+            )
             return omni_base.go_abs(pos[0], pos[1], pos[2])
 
         rospy.logerr("unknown waypoint name [%s]", name)
@@ -135,7 +164,10 @@ class WrsMainController(object):
         """
         waypoint名で指定された場所に移動する
         """
-        rospy.loginfo("go to [raw_pos](%.2f, %.2f, %.2f)", pos[0], pos[1], pos[2])
+        rospy.loginfo(
+            "go to [raw_pos](%.2f, %.2f, %.2f)",
+            pos[0], pos[1], pos[2]
+        )
         return omni_base.go_abs(pos[0], pos[1], pos[2])
 
     def change_pose(self, name):
@@ -154,6 +186,7 @@ class WrsMainController(object):
         読み込んだ座標ファイルの座標を巡回する
         """
         whole_body.move_to_go()
+
         for wp_name in self.coordinates["routes"]["test"]:
             self.goto_name(wp_name)
             rospy.sleep(1)
@@ -192,9 +225,10 @@ class WrsMainController(object):
         """
         最も把持が行えそうなbboxを一つ返す。
         """
-        # objが一つもない場合は、Noneを返す
         obj = cls.get_most_graspable_obj(obj_list)
-        if obj is None: return None
+        if obj is None:
+            return None
+
         return obj["bbox"]
 
     @classmethod
@@ -339,19 +373,42 @@ class WrsMainController(object):
 
         return next(iter(matched_objects)), matched_people[0]
 
-    def grasp_from_side(self, pos_x, pos_y, pos_z, yaw, pitch, roll, preliminary="-y"):
+    def grasp_from_side(
+        self, pos_x, pos_y, pos_z,
+        yaw, pitch, roll, preliminary="-y"
+    ):
         """
         把持の一連の動作を行う
 
-        NOTE: tall_tableに対しての予備動作を生成するときはpreliminary="-y"と設定することになる。
+        NOTE:
+        tall_tableに対しての予備動作を生成するときは
+        preliminary="-y"と設定することになる。
         """
-        if preliminary not in [ "+y", "-y", "+x", "-x" ]: raise RuntimeError("unnkown graps preliminary type [{}]".format(preliminary))
+        if preliminary not in ["+y", "-y", "+x", "-x"]:
+            raise RuntimeError(
+                "unnkown graps preliminary type [{}]".format(preliminary)
+            )
 
-        rospy.loginfo("move hand to grasp (%.2f, %.2f, %.2f)", pos_x, pos_y, pos_z)
+        rospy.loginfo(
+            "move hand to grasp (%.2f, %.2f, %.2f)",
+            pos_x, pos_y, pos_z
+        )
 
-        grasp_back_safe = {"x": pos_x, "y": pos_y, "z": pos_z + self.GRASP_BACK["z"]}
-        grasp_back = {"x": pos_x, "y": pos_y, "z": pos_z + self.GRASP_BACK["z"]}
-        grasp_pos = {"x": pos_x, "y": pos_y, "z": pos_z}
+        grasp_back_safe = {
+            "x": pos_x,
+            "y": pos_y,
+            "z": pos_z + self.GRASP_BACK["z"]
+        }
+        grasp_back = {
+            "x": pos_x,
+            "y": pos_y,
+            "z": pos_z + self.GRASP_BACK["z"]
+        }
+        grasp_pos = {
+            "x": pos_x,
+            "y": pos_y,
+            "z": pos_z
+        }
 
         if "+" in preliminary:
             sign = 1
@@ -366,12 +423,34 @@ class WrsMainController(object):
             grasp_back["y"] += sign * self.GRASP_BACK["xy"]
 
         gripper.command(1)
-        whole_body.move_end_effector_pose(grasp_back_safe["x"], grasp_back_safe["y"], grasp_back_safe["z"], yaw, pitch, roll)
-        whole_body.move_end_effector_pose( grasp_back["x"], grasp_back["y"], grasp_back["z"], yaw, pitch, roll)
+
         whole_body.move_end_effector_pose(
-            grasp_pos["x"], grasp_pos["y"], grasp_pos["z"], yaw, pitch, roll)
+            grasp_back_safe["x"],
+            grasp_back_safe["y"],
+            grasp_back_safe["z"],
+            yaw, pitch, roll
+        )
+        whole_body.move_end_effector_pose(
+            grasp_back["x"],
+            grasp_back["y"],
+            grasp_back["z"],
+            yaw, pitch, roll
+        )
+        whole_body.move_end_effector_pose(
+            grasp_pos["x"],
+            grasp_pos["y"],
+            grasp_pos["z"],
+            yaw, pitch, roll
+        )
+
         gripper.command(0)
-        whole_body.move_end_effector_pose(grasp_back_safe["x"], grasp_back_safe["y"], grasp_back_safe["z"], yaw, pitch, roll)
+
+        whole_body.move_end_effector_pose(
+            grasp_back_safe["x"],
+            grasp_back_safe["y"],
+            grasp_back_safe["z"],
+            yaw, pitch, roll
+        )
 
     def grasp_from_front_side(self, grasp_pos):
         """
@@ -379,25 +458,43 @@ class WrsMainController(object):
         ややアームを下に向けている
         """
         grasp_pos.y -= self.HAND_PALM_OFFSET
-        rospy.loginfo("grasp_from_front_side (%.2f, %.2f, %.2f)",grasp_pos.x, grasp_pos.y, grasp_pos.z)
-        self.grasp_from_side(grasp_pos.x, grasp_pos.y, grasp_pos.z, -90, -100, 0, "-y")
+
+        rospy.loginfo(
+            "grasp_from_front_side (%.2f, %.2f, %.2f)",
+            grasp_pos.x, grasp_pos.y, grasp_pos.z
+        )
+
+        self.grasp_from_side(
+            grasp_pos.x, grasp_pos.y, grasp_pos.z,
+            -90, -100, 0, "-y"
+        )
 
     def grasp_from_upper_side(self, grasp_pos):
         """
         上面から把持を行う
-        オブジェクトに寄るときは、y軸から近づく上面からは近づかない
+        オブジェクトに寄るときは、y軸から近づく
+        上面からは近づかない
         """
         grasp_pos.z += self.HAND_PALM_Z_OFFSET
-        rospy.loginfo("grasp_from_upper_side (%.2f, %.2f, %.2f)",grasp_pos.x, grasp_pos.y, grasp_pos.z)
-        self.grasp_from_side(grasp_pos.x, grasp_pos.y, grasp_pos.z, -90, -160, 0, "-y")
+
+        rospy.loginfo(
+            "grasp_from_upper_side (%.2f, %.2f, %.2f)",
+            grasp_pos.x, grasp_pos.y, grasp_pos.z
+        )
+
+        self.grasp_from_side(
+            grasp_pos.x, grasp_pos.y, grasp_pos.z,
+            -90, -160, 0, "-y"
+        )
 
 
     def exec_graspable_method(self, grasp_pos, label=""):
         """
-        task1専用:posの位置によって把持方法を判定し実行する。
+        task1専用:
+        posの位置によって把持方法を判定し実行する。
         """
         method = None
-        graspable_y = 1.85  # これ以上奥は把持できない
+        graspable_y = 1.85
         desk_y = 1.5
         desk_z = 0.35
 
@@ -441,7 +538,7 @@ class WrsMainController(object):
     def put_in_place(self, place, into_pose):
         # 指定場所に入れ、all_neutral姿勢を取る。
         self.change_pose("look_at_near_floor")
-        a = "go_palce" # TODO 不要な変数
+        a = "go_palce"  # TODO 不要な変数
         self.goto_name(place)
         self.change_pose("all_neutral")
         self.change_pose(into_pose)
@@ -472,21 +569,38 @@ class WrsMainController(object):
     #     # アームを元の姿勢に戻す
     #     self.change_pose("all_neutral")
 
-    def push_in_trofast(self, pos_x, pos_y, pos_z, yaw, pitch, roll):
+    def push_in_trofast(
+        self, pos_x, pos_y, pos_z, yaw, pitch, roll
+    ):
         """
         trofastの引き出しを戻す
+
         NOTE:サンプル
-            self.push_in_trofast(0.178, -0.29, 0.75, -90, 100, 0)
+        self.push_in_trofast(0.178, -0.29, 0.75, -90, 100, 0)
         """
         self.goto_name("stair_like_drawer")
         self.change_pose("grasp_on_table")
-        pos_y+=self.HAND_PALM_OFFSET
+        pos_y += self.HAND_PALM_OFFSET
 
         # 予備動作-押し込む
-        whole_body.move_end_effector_pose(pos_x, pos_y +    self.TROFAST_Y_OFFSET * 1.5, pos_z, yaw, pitch, roll)
+        whole_body.move_end_effector_pose(
+            pos_x,
+            pos_y + self.TROFAST_Y_OFFSET * 1.5,
+            pos_z,
+            yaw, pitch, roll
+        )
+
         gripper.command(0)
-        whole_body.move_end_effector_pose(pos_x, pos_y + self.TROFAST_Y_OFFSET, pos_z, yaw, pitch, roll)
-        whole_body.move_end_effector_pose(pos_x, pos_y, pos_z, yaw, pitch, roll)
+
+        whole_body.move_end_effector_pose(
+            pos_x,
+            pos_y + self.TROFAST_Y_OFFSET,
+            pos_z,
+            yaw, pitch, roll
+        )
+        whole_body.move_end_effector_pose(
+            pos_x, pos_y, pos_z, yaw, pitch, roll
+        )
 
         self.change_pose("all_neutral")
 
@@ -577,19 +691,36 @@ class WrsMainController(object):
     def execute_avoid_blocks(self):
         # blockを避ける
         for i in range(3):
+            if rospy.is_shutdown():
+                return False
             detected_objs = self.get_latest_detection()
+            if detected_objs is None:
+                return False
             bboxes = detected_objs.bboxes
-            pos_bboxes = [self.get_grasp_coordinate(bbox) for bbox in bboxes]
+            pos_bboxes = [
+                self.get_grasp_coordinate(bbox)
+                for bbox in bboxes
+            ]
+            if any(pos is None for pos in pos_bboxes):
+                return False
             waypoint = self.select_next_waypoint(i, pos_bboxes)
+
             # TODO メッセージを確認するためコメントアウトを外す
             # rospy.loginfo(waypoint)
-            self.goto_pos(waypoint)
+            if not self.goto_pos(waypoint):
+                return False
+        return True
 
     def select_next_waypoint(self, current_stp, pos_bboxes):
         """
-        waypoints から近い場所にあるものを除外し、最適なwaypointを返す。
-        x座標を原点に近い方からxa,xb,xcに定義する。bboxを判断基準として移動先を決定する(デフォルトは0.45間隔)
-        pos_bboxesは get_grasp_coordinate() 済みであること
+        waypointsから近い場所にあるものを除外し、
+        最適なwaypointを返す。
+
+        x座標を原点に近い方からxa,xb,xcに定義する。
+        bboxを判断基準として移動先を決定する。
+        デフォルトは0.45間隔。
+
+        pos_bboxesはget_grasp_coordinate()済みであること。
         """
         interval = 0.45
         pos_xa = 1.7
@@ -597,34 +728,51 @@ class WrsMainController(object):
         pos_xc = pos_xb + interval
 
         # xa配列はcurrent_stpに関係している
-        waypoints = {"xa": [ [pos_xa, 2.5, 45],[pos_xa, 2.9, 45],[pos_xa, 3.3, 90] ], "xb": [ [pos_xb, 2.5, 90], [pos_xb, 2.9, 90], [pos_xb, 3.3, 90] ],
-            "xc": [ [pos_xc, 2.5, 135],   [pos_xc, 2.9, 135],  [pos_xc, 3.3, 90 ]]
+        waypoints = {
+            "xa": [
+                [pos_xa, 2.5, 45],
+                [pos_xa, 2.9, 45],
+                [pos_xa, 3.3, 90]
+            ],
+            "xb": [
+                [pos_xb, 2.5, 90],
+                [pos_xb, 2.9, 90],
+                [pos_xb, 3.3, 90]
+            ],
+            "xc": [
+                [pos_xc, 2.5, 135],
+                [pos_xc, 2.9, 135],
+                [pos_xc, 3.3, 90]
+            ]
         }
 
         # posがxa,xb,xcのラインに近い場合は候補から削除
         is_to_xa = True
         is_to_xb = True
         is_to_xc = True
+
         for bbox in pos_bboxes:
             pos_x = bbox.x
+
             # TODO デバッグ時にコメントアウトを外す
-            # rospy.loginfo("detected object obj.x = {:.2f}".format(bbox.x))
+            # rospy.loginfo(
+            #     "detected object obj.x = {:.2f}".format(bbox.x)
+            # )
 
-            # NOTE Hint:ｙ座標次第で無視してよいオブジェクトもある。
-            if pos_x < pos_xa + (interval/2):
+            # NOTE Hint:
+            # y座標次第で無視してよいオブジェクトもある。
+            if pos_x < pos_xa + (interval / 2):
                 is_to_xa = False
-                # rospy.loginfo("is_to_xa=False")
                 continue
-            elif pos_x < pos_xb + (interval/2):
+            elif pos_x < pos_xb + (interval / 2):
                 is_to_xb = False
-                # rospy.loginfo("is_to_xb=False")
                 continue
-            elif pos_x < pos_xc + (interval/2):
+            elif pos_x < pos_xc + (interval / 2):
                 is_to_xc = False
-                # rospy.loginfo("is_to_xc=False")
                 continue
 
-        x_line = None   # xa,xb,xcいずれかのリストが入る
+        x_line = None
+
         # NOTE 優先的にxcに移動する
         if is_to_xc:
             x_line = waypoints["xc"]
@@ -1016,21 +1164,32 @@ class WrsMainController(object):
                 # binに入れる
                 self.put_in_place(place, into_pose)
 
+        return True
+
     def execute_task2a(self):
-        """
-        task2aを実行する
-        """
+        """Task2aを実行し、到達できた場合にTrueを返す。"""
         rospy.loginfo("#### start Task 2a ####")
-        self.change_pose("look_at_near_floor")
-        gripper.command(0)
-        self.change_pose("look_at_near_floor")
-        self.goto_name("standby_2a")
+        if rospy.get_param("~task2a_dqn_enabled", False):
+            if rospy.get_param("~task2a_dqn_dry_run", True):
+                rospy.logerr("Task sequence requires task2a_dqn_dry_run=false")
+                return False
+            if not self.task2a_dqn_run():
+                return False
+        else:
+            self.change_pose("look_at_near_floor")
+            gripper.command(0)
+            if not self.goto_name("standby_2a"):
+                return False
 
-        # 落ちているブロックを避けて移動
-        self.execute_avoid_blocks()
+            # 落ちているブロックを避けて移動
+            if not self.execute_avoid_blocks():
+                return False
+            if not self.goto_name("go_throw_2a"):
+                return False
 
-        self.goto_name("go_throw_2a")
+        # DQNも学習済みゴール(2.0, 3.5)まで到達してから戻る。
         whole_body.move_to_go()
+        return True
 
     def execute_task2b(self):
         """有効な指示を待ち、指定された物を届ける"""
@@ -1075,25 +1234,116 @@ class WrsMainController(object):
         self.deliver_to_target(target_obj, target_person)
 
     def run(self):
-        """
-        全てのタスクを実行する
-        """
+        """Task1 -> Task2a -> Task2bの順に実行する。"""
+        if rospy.get_param("~task2a_dqn_only", False):
+            return self.task2a_dqn_run()
+        if (rospy.get_param("~task2a_dqn_enabled", False)
+                and rospy.get_param("~task2a_dqn_dry_run", True)):
+            rospy.logerr("Task sequence requires task2a_dqn_dry_run=false")
+            return False
         self.change_pose("all_neutral")
-        self.execute_task1()
-        # self.execute_task2a()
-        self.execute_task2b()
+        if rospy.is_shutdown() or not self.execute_task1():
+            rospy.logerr("Task1 stopped; task sequence aborted")
+            return False
+        if rospy.is_shutdown():
+            return False
+        try:
+            task2a_ok = self.execute_task2a()
+        except Exception as error:
+            rospy.logerr("Task2a error: %s", error)
+            task2a_ok = False
+        if not task2a_ok and not rospy.is_shutdown():
+            rospy.logwarn("Task2a failed; switching to straight motion and goal approach")
+            if not self.task2a_error_fallback():
+                rospy.logerr("Task2a fallback could not reach the goal")
+                return False
+        if rospy.is_shutdown():
+            return False
+        return self.execute_task2b()
+
+    def task2a_error_fallback(self):
+        """Task2a失敗後は点群を使わず、直進してからTFでゴールへ移動する。"""
+        try:
+            if rospy.is_shutdown():
+                return False
+            omni_base.NAVCLIENT.cancel_goal()
+            omni_base.cmd_vel(0.0, 0.0, 0.0)
+            distance = float(rospy.get_param("~task2a_fallback_forward_distance", 0.5))
+            speed = float(rospy.get_param("~task2a_fallback_speed", 0.1))
+            timeout = float(rospy.get_param("~task2a_fallback_timeout", 90.0))
+            target_x, target_y, target_deg = self.coordinates["positions"]["go_throw_2a"]
+            if (not all(math.isfinite(v) for v in
+                        (distance, speed, timeout, target_x, target_y, target_deg))
+                    or distance < 0 or speed <= 0 or timeout <= 0):
+                raise ValueError("Invalid Task2a fallback parameters")
+
+            rospy.logwarn("Task2a fallback: forward %.2f m at %.2f m/s", distance, speed)
+            self.move_forward_backward(duration=distance / speed, speed=speed)
+            if rospy.is_shutdown():
+                return False
+
+            rospy.logwarn("Task2a fallback: approaching goal (%.2f, %.2f)", target_x, target_y)
+            start = rospy.Time.now()
+            rate = rospy.Rate(10)
+            while not rospy.is_shutdown():
+                if (rospy.Time.now() - start).to_sec() >= timeout:
+                    rospy.logerr("Task2a fallback: goal approach timed out")
+                    return False
+                transform = self.get_relative_coordinate("map", "base_footprint", latest=True)
+                if transform is None:
+                    return False
+                p, q = transform.translation, transform.rotation
+                if not all(math.isfinite(v) for v in (p.x, p.y, q.x, q.y, q.z, q.w)):
+                    raise ValueError("Invalid Task2a fallback pose")
+                yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                                 1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+                dx, dy = target_x - p.x, target_y - p.y
+                remaining = math.hypot(dx, dy)
+                yaw_error = (math.radians(target_deg) - yaw + math.pi) % (2 * math.pi) - math.pi
+                if remaining < 0.05 and abs(yaw_error) < math.radians(5.0):
+                    omni_base.cmd_vel(0.0, 0.0, 0.0)
+                    whole_body.move_to_go()
+                    rospy.loginfo("Task2a fallback reached goal; continuing to Task2b")
+                    return True
+                # mapの目標方向を台車座標に変換する。障害物の判定・再認識は行わない。
+                scale = min(0.8, speed / max(remaining, 0.001)) if remaining >= 0.05 else 0.0
+                forward = (math.cos(yaw) * dx + math.sin(yaw) * dy) * scale
+                left = (-math.sin(yaw) * dx + math.cos(yaw) * dy) * scale
+                rotation = max(-20.0, min(20.0, math.degrees(yaw_error) * 1.5))
+                omni_base.cmd_vel(forward, left, rotation)
+                rate.sleep()
+            return False
+        except Exception as error:
+            rospy.logerr("Task2a fallback failed: %s", error)
+            return False
+        finally:
+            omni_base.cmd_vel(0.0, 0.0, 0.0)
+
+    def task2a_dqn_run(self):
+        """統合前の物体ラベルを使わない点群版DQNを実行する。"""
+        from wrs_algorithm.task2a_cloud.runner import run_cloud_task
+
+        dry_run = bool(rospy.get_param("~task2a_dqn_dry_run", True))
+        try:
+            if not dry_run:
+                gripper.command(0)
+            return run_cloud_task(self)
+        except Exception as error:
+            rospy.logerr("Task2a point-cloud DQN stopped: %s", error)
+            return False
+        finally:
+            if not dry_run:
+                omni_base.cmd_vel(0.0, 0.0, 0.0)
 
 
 def main():
-    """
-    WRS環境内でタスクを実行するためのメインノードを起動する
-    """
-    rospy.init_node('main_controller')
+    """メインノードを起動する"""
+    rospy.init_node("main_controller")
+
     try:
         ctrl = WrsMainController()
         rospy.loginfo("node initialized [%s]", rospy.get_name())
 
-        # タスクの実行モードを確認する
         if rospy.get_param("~test_mode", default=False) is True:
             rospy.loginfo("#### start with TEST mode. ####")
             ctrl.check_positions()
@@ -1105,5 +1355,5 @@ def main():
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
