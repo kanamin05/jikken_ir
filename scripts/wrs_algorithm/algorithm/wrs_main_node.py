@@ -997,8 +997,6 @@ class WrsMainController(object):
                 if grasp_pos is None:
                     rospy.logwarn("Cannot obtain object coordinates")
                     continue
-
-                self.change_pose("grasp_on_table")
                 
                 self.change_pose("grasp_on_table")
                 if not self.exec_graspable_method(grasp_pos, label):
