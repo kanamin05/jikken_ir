@@ -100,13 +100,15 @@ class WrsMainController(object):
         rospy.loginfo("received [Collision detected with %s]", msg.data)
         self.detection_list.append(msg.data)
 
-    def get_relative_coordinate(self, parent, child):
+    def get_relative_coordinate(self, parent, child, latest=False):
         """
         tfで相対座標を取得する
+        latest=True のときは、最新のtfを取得する
         """
         try:
             # 4秒待機して各tfが存在すれば相対関係をセット
-            trans = self.tf_buffer.lookup_transform(parent, child,rospy.Time.now(),rospy.Duration(4.0))
+            stamp = rospy.Time(0) if latest else rospy.Time.now()
+            trans = self.tf_buffer.lookup_transform(parent, child, stamp, rospy.Duration(4.0))
             return trans.transform
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException):
@@ -645,7 +647,7 @@ class WrsMainController(object):
 
         for i in range(50):
             trans = self.get_relative_coordinate(
-                "map", "base_footprint"
+                "map", "base_footprint", latest = True
             )
 
             if trans is None:
@@ -687,8 +689,8 @@ class WrsMainController(object):
             )
 
             # 低速で移動（最大8cm/s）
-            vel_x = max(-0.08, min(0.08, error_forward * 1.3))
-            vel_y = max(-0.08, min(0.08, error_left * 1.3))
+            vel_x = max(-0.08, min(0.08, error_forward * 0.8))
+            vel_y = max(-0.08, min(0.08, error_left * 0.8))
 
             # 小さすぎる指令では台車が動かなかったので、下限を設ける
             if abs(error_forward) > 0.005 and abs(vel_x) < 0.03:
@@ -712,7 +714,7 @@ class WrsMainController(object):
 
         for i in range(100):
             trans = self.get_relative_coordinate(
-                "map", "base_footprint"
+                "map", "base_footprint", latest = True
             )
 
             if trans is None:
@@ -909,10 +911,10 @@ class WrsMainController(object):
                  lift=0.0, arm_flex = -1.7, grasp_y=0.32, pull_dist=0.3),
             dict(name="右下", waypoint="drawer",
                  target_x=0.12, target_y=0.34, target_deg=-90.0,
-                 lift=0.0, arm_flex = -1.7, grasp_y=0.26, pull_dist=0.3),
+                 lift=0.0, arm_flex = -1.7, grasp_y=0.26, pull_dist=0.27),
             dict(name="右上", waypoint="drawer",
                  target_x=0.12, target_y=0.34, target_deg=-90.0,
-                 lift=0.15, arm_flex = -1.5, grasp_y=0.23, pull_dist=0.35),
+                 lift=0.15, arm_flex = -1.5, grasp_y=0.20, pull_dist=0.35),
         ]
 
         for drawer in drawers:
