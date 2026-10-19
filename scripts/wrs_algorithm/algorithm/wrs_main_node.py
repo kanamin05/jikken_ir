@@ -813,6 +813,7 @@ class WrsMainController(object):
                     return False
 
                 error = pos[1] - target_y
+                # 目標y座標との誤差が5mm未満であれば終了
                 if abs(error) < 0.005:
                     rospy.loginfo("move_to_y: 到達 y=%.3f", pos[1])
                     return True
@@ -828,7 +829,7 @@ class WrsMainController(object):
             omni_base.cmd_vel(0.0, 0.0, 0.0)
         return False
 
-    def align_to_drawer(self, target_x, target_y, target_deg, retry=3):
+    def align_to_drawer(self, target_x, target_y, target_deg, retry=4):
         """62400746 阿部真子
         角度と位置を補正する。両方が許容内に入るまで最大retry回繰り返す
         """
@@ -908,10 +909,10 @@ class WrsMainController(object):
                  lift=0.0, arm_flex = -1.7, grasp_y=0.32, pull_dist=0.3),
             dict(name="右下", waypoint="drawer",
                  target_x=0.12, target_y=0.34, target_deg=-90.0,
-                 lift=0.0, arm_flex = -1.7, grasp_y=0.26, pull_dist=0.25),
+                 lift=0.0, arm_flex = -1.7, grasp_y=0.26, pull_dist=0.3),
             dict(name="右上", waypoint="drawer",
                  target_x=0.12, target_y=0.34, target_deg=-90.0,
-                 lift=0.15, arm_flex = -1.5, grasp_y=0.23, pull_dist=0.3),
+                 lift=0.15, arm_flex = -1.5, grasp_y=0.23, pull_dist=0.35),
         ]
 
         for drawer in drawers:
