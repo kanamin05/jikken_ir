@@ -39,6 +39,8 @@ class WrsMainController(object):
     HAND_PALM_Z_OFFSET = 0.075
     DETECT_CNT = 10
     TROFAST_Y_OFFSET = 0.2
+    MAX_TRY_PER_PLACE = 6  # task1_1か所で掴みに行く最大回数
+    MAX_FAIL_IN_ROW = 3  # task1_運べなかったことが連続でこの回数になったら次の場所へ
 
     def __init__(self):
         # 変数の初期化
@@ -891,7 +893,7 @@ class WrsMainController(object):
         # 掴んだまま押し戻して閉める
         if push_back:
             rospy.sleep(0.5)
-            self.move_to_y(grasp_y + 0.02)   # 掴んだ位置の少し手前まで戻す
+            self.move_forward_backward(duration=7.0, speed=0.05)
             rospy.sleep(0.5)
 
         # 離して、さらに後退
@@ -921,7 +923,7 @@ class WrsMainController(object):
                  target_x=0.12, target_y=0.34, target_deg=-90.0,
                  lift=0.0, arm_flex = -1.7, grasp_y=0.26, pull_dist=0.27),
             dict(name="右上", waypoint="drawer",
-                 target_x=0.11, target_y=0.34, target_deg=-90.0,
+                 target_x=0.115, target_y=0.34, target_deg=-90.0,
                  lift=0.15, arm_flex = -1.5, grasp_y=0.15, pull_dist=0.35,
                  push_back=True),
         ]
@@ -938,6 +940,8 @@ class WrsMainController(object):
         ]
 
         for plc, pose in hsr_position:
+            try_count = 0      # この場所で掴みに行った回数
+            fail_in_row = 0    # 連続で運べなかった回数
             for _ in range(self.DETECT_CNT):
                 # 移動と視線指示
                 self.goto_name(plc)
@@ -973,8 +977,9 @@ class WrsMainController(object):
                 if graspable_obj is None:
                     rospy.logwarn(
                         "No grasp candidate after 3 attempts at %s",
-                        plc
+                        plc    
                     )
+                    fail_in_row += 1 
                     continue
                 
                 label = graspable_obj["label"]
@@ -985,6 +990,7 @@ class WrsMainController(object):
                         into_pose not in self.poses):
                     rospy.logwarn("Cannot sort %s into %s: configure its waypoint and pose.",
                                   label, deposit["destination"])
+                    fail_in_row += 1 
                     continue
                 rospy.loginfo("sort %s (%s) into %s", label, deposit["category"],
                               deposit["destination"])
@@ -996,11 +1002,14 @@ class WrsMainController(object):
 
                 if grasp_pos is None:
                     rospy.logwarn("Cannot obtain object coordinates")
+                    fail_in_row += 1 
                     continue
-                
+
+                try_count += 1
                 self.change_pose("grasp_on_table")
                 if not self.exec_graspable_method(grasp_pos, label):
                     self.change_pose("all_neutral")
+                    fail_in_row += 1
                     continue
                 self.change_pose("all_neutral")
 
